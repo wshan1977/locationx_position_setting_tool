@@ -160,7 +160,7 @@ class PositionSettingScreen extends StatelessWidget {
             final w = constraints.maxWidth;
             final settings = w >= 1200 ? 320.0 : (w * 0.26).clamp(200.0, 320.0);
             final devices = w >= 1200 ? 300.0 : (w * 0.24).clamp(180.0, 300.0);
-            // 카드 검색 패널은 장치 설정 탭과 동일하게 왼쪽에 둔다
+            // 장치 검색 패널은 장치 설정 탭과 동일하게 왼쪽에 둔다
             return Row(
               children: [
                 SizedBox(width: devices, child: const RightDevicePanel()),

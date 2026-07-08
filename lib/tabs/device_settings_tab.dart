@@ -67,14 +67,14 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.radar),
-            label: Text(app.scanning ? '검색 중...' : '카드 검색 (UDP)'),
+            label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
           ),
         ),
         Expanded(
           child: app.devices.isEmpty
               ? Center(
                   child: Text(
-                    app.scanning ? '' : '검색된 카드가 없습니다.\n[카드 검색]을 눌러주세요.',
+                    app.scanning ? '' : '검색된 카드가 없습니다.\n[장치 검색]을 눌러주세요.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade600),
                   ),

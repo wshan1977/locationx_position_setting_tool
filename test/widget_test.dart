@@ -27,7 +27,7 @@ void main() {
     expect(find.text('MQTT 뷰어'), findsOneWidget);
 
     // 초기 탭: 장치 설정
-    expect(find.text('카드 검색 (UDP)'), findsOneWidget);
+    expect(find.text('장치 검색 (UDP)'), findsOneWidget);
   });
 
   testWidgets('position setting tab keeps 3-pane layout',

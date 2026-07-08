@@ -287,7 +287,7 @@ String _resolvePlacementIp(AppState app, PlacedLocator placement) {
 Widget _noIpHint() => Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
-        '카드 IP를 알 수 없습니다. [카드 검색]으로 이 로케이터가 검색되면 사용할 수 있습니다.',
+        '카드 IP를 알 수 없습니다. [장치 검색]으로 이 로케이터가 검색되면 사용할 수 있습니다.',
         style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
       ),
     );

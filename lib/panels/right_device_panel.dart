@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/discovered_device.dart';
 import '../state/app_state.dart';
 
-/// 카드 검색 패널 (위치 설정 탭 왼쪽): 스캔 버튼 + 발견된 디바이스 목록.
+/// 장치 검색 패널 (위치 설정 탭 왼쪽): 스캔 버튼 + 발견된 디바이스 목록.
 /// 로케이터 카드는 캔버스로 드래그할 수 있다.
 class RightDevicePanel extends StatelessWidget {
   const RightDevicePanel({super.key});
@@ -33,14 +33,14 @@ class RightDevicePanel extends StatelessWidget {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.radar),
-              label: Text(app.scanning ? '검색 중...' : '카드 검색 (UDP)'),
+              label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
             ),
           ),
           Expanded(
             child: app.devices.isEmpty
                 ? Center(
                     child: Text(
-                      app.scanning ? '' : '검색된 카드가 없습니다.\n[카드 검색]을 눌러주세요.',
+                      app.scanning ? '' : '검색된 카드가 없습니다.\n[장치 검색]을 눌러주세요.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
