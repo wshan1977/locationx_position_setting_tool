@@ -149,6 +149,9 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   double? _scale3d; // px per meter
   Offset _pan3d = Offset.zero; // 화면 이동 (가운데 버튼 드래그)
 
+  /// 2D 뷰 마우스 커서의 world 좌표 (좌하단 표시용)
+  Offset? _cursorWorld;
+
   MqttState? _mqtt;
 
   @override
@@ -442,16 +445,38 @@ class _PositionLiveViewState extends State<PositionLiveView> {
           _zoom ??= view.zoom;
           _pan = view.panPx + d.delta;
         }),
-        child: ClipRect(
-          child: CustomPaint(
-            size: size,
-            painter: _Live2dPainter(
-              app: app,
-              view: view,
-              rays: rays,
-              tracks: _tracks,
-              now: DateTime.now(),
-              showCoverage: _showCoverage,
+        child: MouseRegion(
+          onHover: (e) =>
+              setState(() => _cursorWorld = view.screenToWorld(e.localPosition)),
+          onExit: (_) => setState(() => _cursorWorld = null),
+          child: ClipRect(
+            child: Stack(
+              children: [
+                CustomPaint(
+                  size: size,
+                  painter: _Live2dPainter(
+                    app: app,
+                    view: view,
+                    rays: rays,
+                    tracks: _tracks,
+                    now: DateTime.now(),
+                    showCoverage: _showCoverage,
+                  ),
+                ),
+                if (_cursorWorld != null)
+                  Positioned(
+                    left: 8,
+                    bottom: 6,
+                    child: Text(
+                      '커서: (${_cursorWorld!.dx.toStringAsFixed(2)}, '
+                      '${_cursorWorld!.dy.toStringAsFixed(2)}) m',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontFamily: 'monospace',
+                          color: Colors.grey.shade700),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -871,7 +896,7 @@ class _Live3dPainter extends CustomPainter {
 
     // 라벨: ID + 설치 판정
     _label(canvas, center + const Offset(12, -26),
-        '${p.shortId} (z=${p.coordinate.z.toStringAsFixed(1)}m)',
+        '${p.shortId} (${p.coordinate.x.toStringAsFixed(2)}, ${p.coordinate.y.toStringAsFixed(2)}, ${p.coordinate.z.toStringAsFixed(2)})',
         color: Colors.blue.shade900);
     _label(canvas, center + const Offset(12, -12), mount.label,
         color: mount.color, fontSize: 10);
@@ -1159,7 +1184,7 @@ class _Live2dPainter extends CustomPainter {
         color: Colors.green.shade700, fontSize: 9);
 
     _label(canvas, center + const Offset(12, -26),
-        '${p.shortId} (z=${p.coordinate.z.toStringAsFixed(1)}m)',
+        '${p.shortId} (${p.coordinate.x.toStringAsFixed(2)}, ${p.coordinate.y.toStringAsFixed(2)}, ${p.coordinate.z.toStringAsFixed(2)})',
         color: Colors.blue.shade900);
     _label(canvas, center + const Offset(12, -12), mount.label,
         color: mount.color, fontSize: 10);
