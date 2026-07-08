@@ -588,16 +588,18 @@ void _label(Canvas canvas, Offset pos, String text,
 }
 
 /// angle → 로케이터 기준 3D 방향 벡터 (근사).
+/// 천장 설치(보드가 아래를 봄, orientation.y=180)면 양의 elevation은
+/// 아래 방향(dz<0), 바닥/책상 설치(위를 봄)면 위 방향(dz>0)이다.
 ({double dx, double dy, double dz}) _rayDirection(
     PlacedLocator placement, _AngleRay ray) {
-  final flip = math.cos(placement.orientation.y * math.pi / 180) < 0 ? -1 : 1;
+  final flip =
+      math.cos(placement.orientation.y * math.pi / 180) < 0 ? -1.0 : 1.0;
   final h = (placement.orientation.z + flip * ray.azimuth) * math.pi / 180;
   final el = ray.elevation * math.pi / 180;
-  final down = flip < 0 ? -1.0 : 1.0;
   return (
     dx: math.cos(h) * math.cos(el),
     dy: math.sin(h) * math.cos(el),
-    dz: down * math.sin(el) * -1,
+    dz: flip * math.sin(el),
   );
 }
 
