@@ -587,20 +587,23 @@ void _label(Canvas canvas, Offset pos, String text,
   tp.paint(canvas, pos);
 }
 
-/// angle → 로케이터 기준 3D 방향 벡터 (근사).
-/// 천장 설치(보드가 아래를 봄, orientation.y=180)면 양의 elevation은
-/// 아래 방향(dz<0), 바닥/책상 설치(위를 봄)면 위 방향(dz>0)이다.
+/// angle → world 3D 방향 벡터.
+/// 보드 로컬 좌표(+z=법선)에서 azimuth/elevation으로 방향을 만들고,
+/// 보드 그리기와 동일한 회전행렬(orientation x/y/z 전체)로 world로 변환한다.
+/// 로케이터마다 설치 방향이 달라도 각자의 orientation을 그대로 반영한다.
 ({double dx, double dy, double dz}) _rayDirection(
     PlacedLocator placement, _AngleRay ray) {
-  final flip =
-      math.cos(placement.orientation.y * math.pi / 180) < 0 ? -1.0 : 1.0;
-  final h = (placement.orientation.z + flip * ray.azimuth) * math.pi / 180;
+  final rot = _Rot.eulerDeg(
+      placement.orientation.x, placement.orientation.y, placement.orientation.z);
+  final az = ray.azimuth * math.pi / 180;
   final el = ray.elevation * math.pi / 180;
-  return (
-    dx: math.cos(h) * math.cos(el),
-    dy: math.sin(h) * math.cos(el),
-    dz: flip * math.sin(el),
+  // 보드 로컬: 정면(+z) 기준, azimuth는 x-y 평면 회전, elevation은 법선 쪽 기울기
+  final w = rot.apply(
+    math.cos(el) * math.cos(az),
+    math.cos(el) * math.sin(az),
+    math.sin(el),
   );
+  return (dx: w.x, dy: w.y, dz: w.z);
 }
 
 // =========================================================
@@ -1261,11 +1264,8 @@ class _Live2dPainter extends CustomPainter {
   void _drawRay(Canvas canvas, PlacedLocator placement, _AngleRay ray) {
     final start = Offset(placement.coordinate.x, placement.coordinate.y);
     final d = _rayDirection(placement, ray);
-    final horizontal =
-        (ray.distance * math.cos(ray.elevation * math.pi / 180)).abs();
-    final dirLen = math.sqrt(d.dx * d.dx + d.dy * d.dy);
-    if (dirLen < 1e-6) return;
-    final end = start + Offset(d.dx / dirLen, d.dy / dirLen) * horizontal;
+    // 3D 방향의 수평 투영 = 위에서 본 점선 (길이도 투영 거리 그대로)
+    final end = start + Offset(d.dx, d.dy) * ray.distance;
 
     final color = _colorFor(ray.tagId).withValues(alpha: ray.live ? 0.9 : 0.3);
     _dashedLine(canvas, view.worldToScreen(start), view.worldToScreen(end),
