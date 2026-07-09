@@ -215,30 +215,23 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('서버 카드 관리', style: Theme.of(context).textTheme.titleMedium),
+        Text('대상 서버', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            hoverTip(
-              '이 카드를 설정 전송·MQTT 연결의 대상 서버로 지정합니다.',
-              FilledButton.icon(
-                onPressed: isTarget ? null : () => app.setServerIp(d.ip),
-                icon: const Icon(Icons.gps_fixed),
-                label: Text(isTarget ? '현재 대상 서버' : '대상 서버로 선택'),
-              ),
-            ),
-            hoverTip(
-              '서버 카드의 상태 확인 웹(포트 8080)을 브라우저로 엽니다.\n'
-              '읽기 전용 뷰어 — 설정 변경은 이 도구에서 합니다.',
-              OutlinedButton.icon(
-                onPressed: () => _openUrl('http://${d.ip}:8080'),
-                icon: const Icon(Icons.open_in_browser),
-                label: const Text('상태 페이지 열기 (:8080)'),
-              ),
-            ),
-          ],
+        hoverTip(
+          '이 카드를 설정 전송·MQTT 연결의 대상 서버로 지정합니다.',
+          FilledButton.icon(
+            onPressed: isTarget ? null : () => app.setServerIp(d.ip),
+            icon: const Icon(Icons.gps_fixed),
+            label: Text(isTarget ? '현재 대상 서버' : '대상 서버로 선택'),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text('MQTT 브로커 설정 (positioning 서비스)',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _ServerMqttSection(
+          key: ValueKey('server-mqtt-${d.dedupeKey}'),
+          serverIp: d.ip,
         ),
         const SizedBox(height: 20),
         Text('장치 제어', style: Theme.of(context).textTheme.titleMedium),
@@ -247,6 +240,15 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           spacing: 8,
           runSpacing: 8,
           children: [
+            hoverTip(
+              '서버 카드의 상태 확인 웹(포트 8080)을 브라우저로 엽니다.\n'
+              '읽기 전용 뷰어 — 설정 변경은 이 도구에서 합니다.',
+              OutlinedButton.icon(
+                onPressed: () => _openUrl('http://${d.ip}:8080'),
+                icon: const Icon(Icons.monitor_heart_outlined),
+                label: const Text('상태 페이지 열기 (:8080)'),
+              ),
+            ),
             hoverTip(
               'positioning 서비스(aoa-positioning)를 재시작합니다.\n'
               '수 초간 angle 수신·position 발행이 중단됩니다.\n'
@@ -285,14 +287,6 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 20),
-        Text('MQTT 브로커 설정 (positioning 서비스)',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _ServerMqttSection(
-          key: ValueKey('server-mqtt-${d.dedupeKey}'),
-          serverIp: d.ip,
         ),
         const SizedBox(height: 12),
         Text(
