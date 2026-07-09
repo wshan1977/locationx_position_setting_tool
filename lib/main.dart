@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import 'canvas/floor_canvas.dart';
@@ -98,6 +99,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
+  String _version = '';
 
   @override
   void initState() {
@@ -105,6 +107,9 @@ class _HomeScreenState extends State<HomeScreen>
     _tabs = TabController(length: 4, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
+    });
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = info.version);
     });
   }
 
@@ -121,14 +126,31 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Material(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: TabBar(
-              controller: _tabs,
-              onTap: (_) => setState(() {}),
-              tabs: const [
-                Tab(icon: Icon(Icons.tune, size: 18), text: '장치 설정'),
-                Tab(icon: Icon(Icons.map, size: 18), text: '위치 설정 (서버)'),
-                Tab(icon: Icon(Icons.monitor_heart, size: 18), text: '데이터 수신'),
-                Tab(icon: Icon(Icons.account_tree, size: 18), text: 'MQTT 뷰어'),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TabBar(
+                    controller: _tabs,
+                    onTap: (_) => setState(() {}),
+                    tabs: const [
+                      Tab(icon: Icon(Icons.tune, size: 18), text: '장치 설정'),
+                      Tab(icon: Icon(Icons.map, size: 18), text: '위치 설정 (서버)'),
+                      Tab(icon: Icon(Icons.monitor_heart, size: 18),
+                          text: '데이터 수신'),
+                      Tab(icon: Icon(Icons.account_tree, size: 18),
+                          text: 'MQTT 뷰어'),
+                    ],
+                  ),
+                ),
+                if (_version.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'v$_version',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ),
               ],
             ),
           ),

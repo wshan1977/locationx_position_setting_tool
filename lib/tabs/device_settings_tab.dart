@@ -281,6 +281,15 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           runSpacing: 8,
           children: [
             hoverTip(
+              '카드의 상태 확인 웹(포트 8080)을 브라우저로 엽니다.\n'
+              '안테나 UART 수신 · CPU 온도 · MQTT 연결 상태를 실시간으로 보여줍니다.',
+              OutlinedButton.icon(
+                onPressed: () => _openUrl('http://${d.ip}:8080'),
+                icon: const Icon(Icons.monitor_heart_outlined),
+                label: const Text('상태 페이지 열기 (:8080)'),
+              ),
+            ),
+            hoverTip(
               '카드의 LED를 8초간 점멸시켜 현장에서 어떤 장치인지 확인합니다.\n'
               '(카드 동작에는 영향 없음)',
               OutlinedButton.icon(
