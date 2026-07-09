@@ -139,6 +139,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   bool _showCoverage = true;
   bool _showRays = true;
   bool _showFloor = true;
+  bool _showTrail = true;
 
   // ---- 2D 뷰 상태 ----
   double? _zoom;
@@ -289,6 +290,21 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                 visualDensity: VisualDensity.compact,
                 onSelected: (v) => setState(() => _showFloor = v),
               ),
+              FilterChip(
+                label: const Text('잔상', style: TextStyle(fontSize: 11)),
+                selected: _showTrail,
+                visualDensity: VisualDensity.compact,
+                onSelected: (v) => setState(() => _showTrail = v),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  for (final t in _tracks.values) {
+                    t.trail.clear();
+                  }
+                }),
+                icon: const Icon(Icons.clear_all, size: 15),
+                label: const Text('잔상 지우기', style: TextStyle(fontSize: 12)),
+              ),
               Text(
                 _is3d ? '드래그: 회전 · 가운데 버튼: 이동 · 휠: 줌' : '드래그: 이동 · 휠: 줌',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
@@ -403,6 +419,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
               showCoverage: _showCoverage,
               showRays: _showRays,
               showFloor: _showFloor,
+              showTrail: _showTrail,
             ),
           ),
         ),
@@ -478,6 +495,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                     showCoverage: _showCoverage,
                     showRays: _showRays,
                     showFloor: _showFloor,
+                    showTrail: _showTrail,
                   ),
                 ),
                 if (_cursorWorld != null)
@@ -655,6 +673,7 @@ class _Live3dPainter extends CustomPainter {
   final bool showCoverage;
   final bool showRays;
   final bool showFloor;
+  final bool showTrail;
 
   _Live3dPainter({
     required this.app,
@@ -668,6 +687,7 @@ class _Live3dPainter extends CustomPainter {
     required this.showCoverage,
     required this.showRays,
     required this.showFloor,
+    required this.showTrail,
   });
 
   late Matrix4 _m;
@@ -962,7 +982,7 @@ class _Live3dPainter extends CustomPainter {
     if (ageSec > 30) return;
     final color = _colorFor(tagId);
 
-    if (track.trail.length >= 2) {
+    if (showTrail && track.trail.length >= 2) {
       for (var i = 1; i < track.trail.length; i++) {
         final t = i / track.trail.length;
         final a = track.trail[i - 1];
@@ -1081,6 +1101,7 @@ class _Live2dPainter extends CustomPainter {
   final bool showCoverage;
   final bool showRays;
   final bool showFloor;
+  final bool showTrail;
 
   _Live2dPainter({
     required this.app,
@@ -1091,6 +1112,7 @@ class _Live2dPainter extends CustomPainter {
     required this.showCoverage,
     required this.showRays,
     required this.showFloor,
+    required this.showTrail,
   });
 
   /// world 미터 → 스크린 px 길이.
@@ -1256,7 +1278,7 @@ class _Live2dPainter extends CustomPainter {
     if (ageSec > 30) return;
     final color = _colorFor(tagId);
 
-    if (track.trail.length >= 2) {
+    if (showTrail && track.trail.length >= 2) {
       for (var i = 1; i < track.trail.length; i++) {
         final t = i / track.trail.length;
         canvas.drawLine(
