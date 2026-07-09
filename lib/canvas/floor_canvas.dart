@@ -35,9 +35,15 @@ class FloorCanvas extends StatelessWidget {
           return Listener(
             onPointerSignal: (event) {
               if (event is PointerScrollEvent) {
-                final factor = event.scrollDelta.dy > 0 ? 1 / 1.15 : 1.15;
-                app.setTransform(
-                    t.zoomAt(event.localPosition, t.zoom * factor));
+                if (app.canvasMode == CanvasMode.adjustImage) {
+                  // 도면 조정 모드: 뷰가 아니라 도면 이미지 크기를 조정
+                  final factor = event.scrollDelta.dy > 0 ? 1 / 1.05 : 1.05;
+                  app.scaleImage(event.localPosition, factor);
+                } else {
+                  final factor = event.scrollDelta.dy > 0 ? 1 / 1.15 : 1.15;
+                  app.setTransform(
+                      t.zoomAt(event.localPosition, t.zoom * factor));
+                }
               }
             },
             child: GestureDetector(
@@ -52,12 +58,18 @@ class FloorCanvas extends StatelessWidget {
                 }
               },
               onPanUpdate: (details) {
-                app.setTransform(t.copyWith(panPx: t.panPx + details.delta));
+                if (app.canvasMode == CanvasMode.adjustImage) {
+                  app.nudgeImage(details.delta);
+                } else {
+                  app.setTransform(t.copyWith(panPx: t.panPx + details.delta));
+                }
               },
               child: MouseRegion(
-                cursor: app.canvasMode == CanvasMode.normal
-                    ? SystemMouseCursors.basic
-                    : SystemMouseCursors.precise,
+                cursor: switch (app.canvasMode) {
+                  CanvasMode.normal => SystemMouseCursors.basic,
+                  CanvasMode.adjustImage => SystemMouseCursors.move,
+                  _ => SystemMouseCursors.precise,
+                },
                 child: Container(
                   color: candidates.isNotEmpty
                       ? Colors.blue.withValues(alpha: 0.06)
@@ -141,6 +153,7 @@ class FloorCanvas extends StatelessWidget {
       CanvasMode.calibrateP1 => '스케일 보정: 첫 번째 점을 클릭하세요',
       CanvasMode.calibrateP2 => '스케일 보정: 두 번째 점을 클릭하세요',
       CanvasMode.setOrigin => '원점(0,0)으로 사용할 위치를 클릭하세요',
+      CanvasMode.adjustImage => '도면 조정: 드래그=도면 이동 · 휠=도면 크기 (배치는 고정)',
       CanvasMode.normal => '',
     };
     return Material(

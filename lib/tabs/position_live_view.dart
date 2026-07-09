@@ -137,6 +137,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
 
   bool _is3d = true;
   bool _showCoverage = true;
+  bool _showRays = true;
+  bool _showFloor = true;
 
   // ---- 2D 뷰 상태 ----
   double? _zoom;
@@ -268,13 +270,24 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                 ),
               ),
               _legendPlate(),
-              _legendDash(Colors.orange, 'angle 방향'),
               _legendDot(Colors.red, '태그(+오차원)'),
+              FilterChip(
+                label: const Text('angle 점선', style: TextStyle(fontSize: 11)),
+                selected: _showRays,
+                visualDensity: VisualDensity.compact,
+                onSelected: (v) => setState(() => _showRays = v),
+              ),
               FilterChip(
                 label: const Text('커버리지', style: TextStyle(fontSize: 11)),
                 selected: _showCoverage,
                 visualDensity: VisualDensity.compact,
                 onSelected: (v) => setState(() => _showCoverage = v),
+              ),
+              FilterChip(
+                label: const Text('도면', style: TextStyle(fontSize: 11)),
+                selected: _showFloor,
+                visualDensity: VisualDensity.compact,
+                onSelected: (v) => setState(() => _showFloor = v),
               ),
               Text(
                 _is3d ? '드래그: 회전 · 가운데 버튼: 이동 · 휠: 줌' : '드래그: 이동 · 휠: 줌',
@@ -388,6 +401,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
               scale: _scale3d!,
               pan: _pan3d,
               showCoverage: _showCoverage,
+              showRays: _showRays,
+              showFloor: _showFloor,
             ),
           ),
         ),
@@ -461,6 +476,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                     tracks: _tracks,
                     now: DateTime.now(),
                     showCoverage: _showCoverage,
+                    showRays: _showRays,
+                    showFloor: _showFloor,
                   ),
                 ),
                 if (_cursorWorld != null)
@@ -554,14 +571,6 @@ class _PositionLiveViewState extends State<PositionLiveView> {
         ],
       );
 
-  Widget _legendDash(Color c, String label) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 14, height: 2, color: c),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 11)),
-        ],
-      );
 }
 
 // =========================================================
@@ -644,6 +653,8 @@ class _Live3dPainter extends CustomPainter {
   final double scale;
   final Offset pan;
   final bool showCoverage;
+  final bool showRays;
+  final bool showFloor;
 
   _Live3dPainter({
     required this.app,
@@ -655,6 +666,8 @@ class _Live3dPainter extends CustomPainter {
     required this.scale,
     this.pan = Offset.zero,
     required this.showCoverage,
+    required this.showRays,
+    required this.showFloor,
   });
 
   late Matrix4 _m;
@@ -690,7 +703,7 @@ class _Live3dPainter extends CustomPainter {
       ..scale(scale, -scale, scale)
       ..translate(-cx, -cy, 0);
 
-    _drawFloor(canvas, bounds);
+    if (showFloor) _drawFloor(canvas, bounds);
     _drawGrid(canvas, bounds);
     _drawAxes(canvas, bounds);
 
@@ -704,10 +717,12 @@ class _Live3dPainter extends CustomPainter {
     }
 
     // angle 점선 (3D 방향)
-    for (final ray in rays) {
-      final placement = placementById[ray.locatorId];
-      if (placement == null) continue;
-      _drawRay3d(canvas, placement, ray);
+    if (showRays) {
+      for (final ray in rays) {
+        final placement = placementById[ray.locatorId];
+        if (placement == null) continue;
+        _drawRay3d(canvas, placement, ray);
+      }
     }
 
     // 로케이터 보드 (자세 표현)
@@ -1064,6 +1079,8 @@ class _Live2dPainter extends CustomPainter {
   final Map<String, _TagTrack> tracks;
   final DateTime now;
   final bool showCoverage;
+  final bool showRays;
+  final bool showFloor;
 
   _Live2dPainter({
     required this.app,
@@ -1072,6 +1089,8 @@ class _Live2dPainter extends CustomPainter {
     required this.tracks,
     required this.now,
     required this.showCoverage,
+    required this.showRays,
+    required this.showFloor,
   });
 
   /// world 미터 → 스크린 px 길이.
@@ -1087,7 +1106,7 @@ class _Live2dPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.grey.shade100);
 
-    final img = app.floorImage;
+    final img = showFloor ? app.floorImage : null;
     if (img != null) {
       final dst = Rect.fromLTWH(
         view.panPx.dx,
@@ -1116,10 +1135,12 @@ class _Live2dPainter extends CustomPainter {
       }
     }
 
-    for (final ray in rays) {
-      final placement = placementById[ray.locatorId];
-      if (placement == null) continue;
-      _drawRay(canvas, placement, ray);
+    if (showRays) {
+      for (final ray in rays) {
+        final placement = placementById[ray.locatorId];
+        if (placement == null) continue;
+        _drawRay(canvas, placement, ray);
+      }
     }
 
     for (final p in app.placements) {

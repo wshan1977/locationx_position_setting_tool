@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/placement.dart';
 import '../services/udp_control_service.dart';
 import '../state/app_state.dart';
+import '../widgets/password_gate.dart';
 import 'form_widgets.dart';
 
 const _aoxModes = [
@@ -148,78 +149,119 @@ class LocatorSettingsForm extends StatelessWidget {
           tilePadding: EdgeInsets.zero,
           childrenPadding: const EdgeInsets.only(bottom: 8),
           children: [
-            SafeDropdown(
-              label: 'aoxMode',
-              value: p.config['aoxMode']?.toString() ?? _aoxModes.first,
-              options: _aoxModes,
-              onChanged: (v) => _setConfig(app, 'aoxMode', v),
+            _cfgTip(
+              'AoA 방향 추정 알고리즘 모드입니다.\n'
+              '· REAL_TIME_FAST_RESPONSE: 반응이 빠름 — 움직이는 태그에 적합, 노이즈에 민감\n'
+              '· REAL_TIME_BASIC: 기본 실시간 모드 (권장)\n'
+              '· HIGH_ACCURACY: 가장 정확하지만 계산량이 많아 느림\n'
+              '(AOD_*는 AoD 방식 전용 모드)',
+              SafeDropdown(
+                label: 'aoxMode',
+                value: p.config['aoxMode']?.toString() ?? _aoxModes.first,
+                options: _aoxModes,
+                onChanged: (v) => _setConfig(app, 'aoxMode', v),
+              ),
             ),
             const SizedBox(height: 8),
-            SafeDropdown(
-              label: 'antennaMode',
-              value:
-                  p.config['antennaMode']?.toString() ?? _antennaModes.first,
-              options: _antennaModes,
-              onChanged: (v) => _setConfig(app, 'antennaMode', v),
+            _cfgTip(
+              '로케이터 안테나 배열 형태입니다. 카드의 실제 안테나 보드와 일치해야 합니다.\n'
+              '· 4x4_URA: 4×4 평면 배열 (기본)\n'
+              '· 3x3_URA: 3×3 평면 배열\n'
+              '· 1x4_ULA: 1×4 직선 배열 — azimuth만 정확, elevation 부정확',
+              SafeDropdown(
+                label: 'antennaMode',
+                value:
+                    p.config['antennaMode']?.toString() ?? _antennaModes.first,
+                options: _antennaModes,
+                onChanged: (v) => _setConfig(app, 'antennaMode', v),
+              ),
             ),
             const SizedBox(height: 8),
-            SafeDropdown(
-              label: 'cteMode',
-              value: p.config['cteMode']?.toString() ?? _cteModes.first,
-              options: _cteModes,
-              onChanged: (v) => _setConfig(app, 'cteMode', v),
+            _cfgTip(
+              'CTE(Constant Tone Extension) 수신 방식입니다. 태그의 송신 방식과 일치해야 합니다.\n'
+              '· SILABS: Silicon Labs 독자 비연결 방식 (기본)\n'
+              '· CONNLESS: BLE 표준 비연결(주기적 광고) 방식\n'
+              '· CONN: BLE 연결 기반 방식',
+              SafeDropdown(
+                label: 'cteMode',
+                value: p.config['cteMode']?.toString() ?? _cteModes.first,
+                options: _cteModes,
+                onChanged: (v) => _setConfig(app, 'cteMode', v),
+              ),
             ),
             const SizedBox(height: 8),
-            SwitchListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('angleFiltering', style: TextStyle(fontSize: 13)),
-              value: p.config['angleFiltering'] == true,
-              onChanged: (v) => _setConfig(app, 'angleFiltering', v),
+            _cfgTip(
+              '각도 필터링(스무딩) 사용 여부입니다.\n'
+              '켜면 각도 노이즈가 줄어 안정적이지만, 태그가 움직일 때 반응이 느려집니다.',
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title:
+                    const Text('angleFiltering', style: TextStyle(fontSize: 13)),
+                value: p.config['angleFiltering'] == true,
+                onChanged: (v) => _setConfig(app, 'angleFiltering', v),
+              ),
             ),
-            NumField(
-              label: 'angleFilteringWeight',
-              value: _num(p.config['angleFilteringWeight'], 0.6),
-              onChanged: (v) => _setConfig(app, 'angleFilteringWeight', v),
+            _cfgTip(
+              '각도 필터 강도 (0~1)입니다. 기본 0.6.\n'
+              '클수록 이전 값을 많이 유지해 부드러워지지만 변화에 늦게 반응합니다.',
+              NumField(
+                label: 'angleFilteringWeight',
+                value: _num(p.config['angleFilteringWeight'], 0.6),
+                onChanged: (v) => _setConfig(app, 'angleFilteringWeight', v),
+              ),
             ),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(
-                  child: NumField(
-                label: 'cteLength',
-                value: _num(p.config['cteLength'], 160),
-                fractionDigits: 0,
-                onChanged: (v) =>
-                    _setConfig(app, 'cteLength', v.toInt()),
+                  child: _cfgTip(
+                'CTE 신호 길이입니다. 기본 160.\n'
+                '길수록 IQ 샘플이 많아져 각도 품질이 좋아지지만 무선 점유 시간이 늘어납니다.',
+                NumField(
+                  label: 'cteLength',
+                  value: _num(p.config['cteLength'], 160),
+                  fractionDigits: 0,
+                  onChanged: (v) => _setConfig(app, 'cteLength', v.toInt()),
+                ),
               )),
               const SizedBox(width: 6),
               Expanded(
-                  child: NumField(
-                label: 'cteSamplingInterval',
-                value: _num(p.config['cteSamplingInterval'], 1),
-                fractionDigits: 0,
-                onChanged: (v) =>
-                    _setConfig(app, 'cteSamplingInterval', v.toInt()),
+                  child: _cfgTip(
+                'CTE 샘플링 간격입니다. 기본 1.\n'
+                '작을수록 촘촘하게 샘플링해 정확도가 올라가지만 데이터양이 늘어납니다.',
+                NumField(
+                  label: 'cteSamplingInterval',
+                  value: _num(p.config['cteSamplingInterval'], 1),
+                  fractionDigits: 0,
+                  onChanged: (v) =>
+                      _setConfig(app, 'cteSamplingInterval', v.toInt()),
+                ),
               )),
             ]),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(
-                  child: NumField(
-                label: 'periodSamples',
-                value: _num(p.config['periodSamples'], 64),
-                fractionDigits: 0,
-                onChanged: (v) =>
-                    _setConfig(app, 'periodSamples', v.toInt()),
+                  child: _cfgTip(
+                '각도 1회 계산에 사용하는 IQ 샘플 수입니다. 기본 64.\n'
+                '많을수록 안정적이지만 갱신 주기와 계산량이 늘어납니다.',
+                NumField(
+                  label: 'periodSamples',
+                  value: _num(p.config['periodSamples'], 64),
+                  fractionDigits: 0,
+                  onChanged: (v) => _setConfig(app, 'periodSamples', v.toInt()),
+                ),
               )),
               const SizedBox(width: 6),
               Expanded(
-                  child: NumField(
-                label: 'slotDuration',
-                value: _num(p.config['slotDuration'], 1),
-                fractionDigits: 0,
-                onChanged: (v) =>
-                    _setConfig(app, 'slotDuration', v.toInt()),
+                  child: _cfgTip(
+                '안테나 스위칭 슬롯 길이(µs)입니다. BLE 표준상 1 또는 2. 기본 1.\n'
+                '1µs면 같은 CTE에서 더 많은 안테나 샘플을 얻습니다.',
+                NumField(
+                  label: 'slotDuration',
+                  value: _num(p.config['slotDuration'], 1),
+                  fractionDigits: 0,
+                  onChanged: (v) => _setConfig(app, 'slotDuration', v.toInt()),
+                ),
               )),
             ]),
           ],
@@ -273,6 +315,14 @@ class LocatorSettingsForm extends StatelessWidget {
 
   static double _num(Object? v, double fallback) =>
       v is num ? v.toDouble() : fallback;
+
+  /// 설정 항목 설명 툴팁: 마우스를 1초쯤 올리고 있으면 표시된다.
+  Widget _cfgTip(String message, Widget child) => Tooltip(
+        message: message,
+        waitDuration: const Duration(seconds: 1),
+        textStyle: const TextStyle(fontSize: 12, color: Colors.white),
+        child: child,
+      );
 }
 
 /// 검색 결과 우선, 없으면 배치에 저장된 IP.
@@ -418,6 +468,8 @@ class _MqttBrokerSectionState extends State<_MqttBrokerSection> {
       _controlSnack(context, '호스트/포트를 올바르게 입력하세요');
       return;
     }
+    final ok = await confirmSettingsPassword(context, 'MQTT 브로커 설정 변경');
+    if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
       final resp = await _control.setMqtt(

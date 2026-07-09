@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/discovered_device.dart';
+import '../models/placement.dart';
 import '../state/app_state.dart';
 
 /// 장치 검색 패널 (위치 설정 탭 왼쪽): 스캔 버튼 + 발견된 디바이스 목록.
@@ -14,6 +15,7 @@ class RightDevicePanel extends StatelessWidget {
     final app = context.watch<AppState>();
     final servers = app.devices.where((d) => d.isServer).toList();
     final locators = app.devices.where((d) => !d.isServer).toList();
+    final missing = app.missingPlacements;
 
     return Container(
       decoration: BoxDecoration(
@@ -37,7 +39,7 @@ class RightDevicePanel extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: app.devices.isEmpty
+            child: app.devices.isEmpty && missing.isEmpty
                 ? Center(
                     child: Text(
                       app.scanning ? '' : '검색된 카드가 없습니다.\n[장치 검색]을 눌러주세요.',
@@ -60,6 +62,10 @@ class RightDevicePanel extends StatelessWidget {
                               style: TextStyle(color: Colors.grey.shade600)),
                         ),
                       for (final d in locators) _LocatorTile(device: d),
+                      if (missing.isNotEmpty) ...[
+                        _sectionTitle('배치됨 · 검색 안 됨 (${missing.length})'),
+                        for (final p in missing) _MissingLocatorTile(placement: p),
+                      ],
                       const SizedBox(height: 8),
                       Text(
                         '로케이터를 캔버스로 드래그해서 배치하세요.',
@@ -109,6 +115,41 @@ class _ServerTile extends StatelessWidget {
                 onPressed: () => app.setServerIp(device.ip),
                 child: const Text('선택'),
               ),
+      ),
+    );
+  }
+}
+
+/// 배치돼 있지만 마지막 검색에서 발견되지 않은 로케이터 경고 타일.
+class _MissingLocatorTile extends StatelessWidget {
+  final PlacedLocator placement;
+  const _MissingLocatorTile({required this.placement});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return Card(
+      color: Colors.orange.shade50,
+      child: ListTile(
+        dense: true,
+        leading: Icon(Icons.signal_wifi_off, color: Colors.orange.shade700),
+        title: Text(
+          placement.deviceName.isNotEmpty
+              ? placement.deviceName
+              : placement.shortId,
+        ),
+        subtitle: Text(
+          '${placement.ip.isNotEmpty ? placement.ip : 'IP 미상'}\n'
+          '${placement.locatorId}\n전원/네트워크를 확인하거나 교체됐으면 배치를 제거하세요.',
+          style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+        ),
+        isThreeLine: true,
+        trailing: IconButton(
+          tooltip: '배치 제거',
+          icon: const Icon(Icons.delete_outline, size: 18),
+          onPressed: () => app.removePlacement(placement.locatorId),
+        ),
+        onTap: () => app.selectLocator(placement.locatorId),
       ),
     );
   }

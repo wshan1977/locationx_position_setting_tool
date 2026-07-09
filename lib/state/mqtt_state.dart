@@ -82,6 +82,16 @@ class MqttState extends ChangeNotifier {
 
   bool get isConnected => status == MqttStatus.connected;
 
+  /// 세션 복원용: 연결하지 않고 접속 정보만 채운다 (연결 바 프리필).
+  void restoreEndpoint(String newHost, int newPort, {String? filter}) {
+    host = newHost.trim();
+    port = newPort;
+    if (filter != null && filter.trim().isNotEmpty) {
+      subscribeFilter = filter.trim();
+    }
+    notifyListeners();
+  }
+
   Future<void> connect(String newHost, int newPort, {String? filter}) async {
     await disconnect();
 

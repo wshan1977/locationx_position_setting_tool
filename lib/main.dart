@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'canvas/floor_canvas.dart';
 import 'canvas/placement_3d_view.dart';
+import 'models/session.dart';
 import 'panels/left_settings_panel.dart';
 import 'panels/right_device_panel.dart';
+import 'services/session_storage.dart';
 import 'state/app_state.dart';
 import 'state/mqtt_state.dart';
 import 'tabs/data_monitor_tab.dart';
@@ -12,16 +17,57 @@ import 'tabs/device_settings_tab.dart';
 import 'tabs/mqtt_viewer_tab.dart';
 import 'widgets/toolbar.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final app = AppState();
+  final mqtt = MqttState();
+
+  // 끄기 전 상태(도면/배치/서버 IP/MQTT 설정)를 즉시 복원
+  final session = await SessionStorage.load();
+  if (session != null) {
+    await app.restoreSession(session);
+    if (session.mqttHost.isNotEmpty) {
+      mqtt.restoreEndpoint(session.mqttHost, session.mqttPort,
+          filter: session.mqttFilter);
+    }
+    if (session.mqttConnected && session.mqttHost.isNotEmpty) {
+      unawaited(_autoReconnect(app, mqtt, session));
+    }
+  }
+
+  // 이후 변경은 자동으로 세션에 기록
+  final autoSaver = SessionAutoSaver(app, mqtt)..start();
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppState()),
-        ChangeNotifierProvider(create: (_) => MqttState()),
+        ChangeNotifierProvider.value(value: app),
+        ChangeNotifierProvider.value(value: mqtt),
+        ChangeNotifierProvider.value(value: autoSaver),
       ],
       child: const LocationXApp(),
     ),
   );
+}
+
+/// 종료 시점에 MQTT가 연결돼 있었다면, 장치 검색으로 서버 주소가
+/// 그대로인지 확인한 뒤 자동으로 다시 연결한다.
+/// (검색된 서버 카드 IP가 저장된 주소와 다르면 자동 연결하지 않음)
+Future<void> _autoReconnect(
+    AppState app, MqttState mqtt, SessionData session) async {
+  try {
+    await app.scan();
+  } catch (_) {
+    // 검색 실패(네트워크 등)는 무시하고 연결만 시도
+  }
+  final server = app.serverDevice;
+  final serverMoved = server != null &&
+      session.project.serverIp.isNotEmpty &&
+      server.ip != session.project.serverIp;
+  if (serverMoved) return;
+  await mqtt.connect(session.mqttHost, session.mqttPort,
+      filter: session.mqttFilter);
 }
 
 class LocationXApp extends StatelessWidget {
@@ -113,34 +159,60 @@ class _CanvasArea extends StatefulWidget {
 
 class _CanvasAreaState extends State<_CanvasArea> {
   bool _is3d = false;
+  final FocusNode _focusNode = FocusNode(debugLabel: 'positionCanvas');
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: _is3d ? const Placement3dView() : const FloorCanvas(),
-        ),
-        Positioned(
-          top: 8,
-          right: 8,
-          child: SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Top')),
-              ButtonSegment(value: true, label: Text('3D')),
+    // 캔버스 편집 실행 취소/다시 실행. 좌표 입력 필드에 포커스가 있을 때는
+    // 텍스트 자체의 undo가 동작하고, 캔버스를 클릭하면 여기로 포커스가 온다.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () =>
+            context.read<AppState>().undo(),
+        const SingleActivator(LogicalKeyboardKey.keyZ,
+            control: true, shift: true): () => context.read<AppState>().redo(),
+        const SingleActivator(LogicalKeyboardKey.keyY, control: true): () =>
+            context.read<AppState>().redo(),
+      },
+      child: Focus(
+        focusNode: _focusNode,
+        autofocus: true,
+        child: Listener(
+          onPointerDown: (_) => _focusNode.requestFocus(),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _is3d ? const Placement3dView() : const FloorCanvas(),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Top')),
+                    ButtonSegment(value: true, label: Text('3D')),
+                  ],
+                  selected: {_is3d},
+                  onSelectionChanged: (s) => setState(() => _is3d = s.first),
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: WidgetStatePropertyAll(
+                        Colors.white.withValues(alpha: 0.85)),
+                    textStyle:
+                        const WidgetStatePropertyAll(TextStyle(fontSize: 11.5)),
+                  ),
+                ),
+              ),
             ],
-            selected: {_is3d},
-            onSelectionChanged: (s) => setState(() => _is3d = s.first),
-            style: ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              backgroundColor: WidgetStatePropertyAll(
-                  Colors.white.withValues(alpha: 0.85)),
-              textStyle:
-                  const WidgetStatePropertyAll(TextStyle(fontSize: 11.5)),
-            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

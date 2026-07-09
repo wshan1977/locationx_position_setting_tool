@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -11,11 +12,12 @@ import '../models/discovered_device.dart';
 import '../models/placement.dart';
 import '../models/positioning_config.dart';
 import '../models/project.dart';
+import '../models/session.dart';
 import '../services/discovery_service.dart';
 import '../services/project_storage.dart';
 
 /// 캔버스 클릭 모드.
-enum CanvasMode { normal, calibrateP1, calibrateP2, setOrigin }
+enum CanvasMode { normal, calibrateP1, calibrateP2, setOrigin, adjustImage }
 
 class AppState extends ChangeNotifier {
   final DiscoveryService _discovery = DiscoveryService();
@@ -24,6 +26,9 @@ class AppState extends ChangeNotifier {
   // ---- 디스커버리 ----
   List<DiscoveredDevice> devices = [];
   bool scanning = false;
+
+  /// 이번 실행에서 검색을 한 번이라도 완료했는지 (미검색 경고 표시용).
+  bool hasScanned = false;
 
   // ---- 서버 연결 ----
   String serverIp = '';
@@ -48,6 +53,15 @@ class AppState extends ChangeNotifier {
   String? projectPath;
   bool dirty = false;
 
+  // ---- 실행 취소 (위치 설정 편집) ----
+  final List<String> _undoStack = [];
+  final List<String> _redoStack = [];
+  static const int _maxUndo = 50;
+  DateTime _lastUndoPushAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  bool get canUndo => _undoStack.isNotEmpty;
+  bool get canRedo => _redoStack.isNotEmpty;
+
   DiscoveredDevice? get serverDevice =>
       devices.where((d) => d.isServer).firstOrNull;
 
@@ -63,6 +77,76 @@ class AppState extends ChangeNotifier {
   }
 
   // =========================================================
+  // 실행 취소 / 다시 실행
+  // =========================================================
+  /// 변경 직전 상태를 스냅샷으로 쌓는다 (변경하는 메서드의 맨 앞에서 호출).
+  /// [coalesce]면 짧은 간격의 연속 변경(마커 드래그)을 한 단계로 묶는다.
+  /// JSON 문자열로 저장해 이후 편집이 스냅샷에 스며들지 않게 한다.
+  void _pushUndo({bool coalesce = false}) {
+    _redoStack.clear();
+    final now = DateTime.now();
+    if (coalesce &&
+        _undoStack.isNotEmpty &&
+        now.difference(_lastUndoPushAt).inMilliseconds < 700) {
+      _lastUndoPushAt = now;
+      return;
+    }
+    _lastUndoPushAt = now;
+    _undoStack.add(jsonEncode(toProject().toJson()));
+    if (_undoStack.length > _maxUndo) _undoStack.removeAt(0);
+  }
+
+  void _clearUndo() {
+    _undoStack.clear();
+    _redoStack.clear();
+  }
+
+  Future<void> undo() async {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add(jsonEncode(toProject().toJson()));
+    await _applySnapshot(_undoStack.removeLast());
+  }
+
+  Future<void> redo() async {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(jsonEncode(toProject().toJson()));
+    await _applySnapshot(_redoStack.removeLast());
+  }
+
+  /// 스냅샷 복원. 뷰 상태(줌/팬)와 프로젝트 경로는 유지한다.
+  Future<void> _applySnapshot(String snapshot) async {
+    final project =
+        ProjectFile.fromJson(jsonDecode(snapshot) as Map<String, dynamic>);
+    serverIp = project.serverIp;
+    calibP1 = project.calibP1;
+    calibP2 = project.calibP2;
+    calibDistanceM = project.calibDistanceM;
+    placements
+      ..clear()
+      ..addAll(project.placements);
+    globals = project.globals;
+    if (selectedLocatorId != null &&
+        placements.every((p) => p.locatorId != selectedLocatorId)) {
+      selectedLocatorId = null;
+    }
+    transform = transform.copyWith(
+      metersPerPixel: project.metersPerPixel,
+      originPx: project.originPx,
+    );
+    if (floorImagePath != project.floorPlanImagePath) {
+      floorImage?.dispose();
+      floorImage = null;
+      floorImagePath = project.floorPlanImagePath;
+      final path = project.floorPlanImagePath;
+      if (path != null && File(path).existsSync()) {
+        floorImage = await decodeImageFromList(await File(path).readAsBytes());
+      }
+    }
+    dirty = true;
+    notifyListeners();
+  }
+
+  // =========================================================
   // 디스커버리
   // =========================================================
   Future<void> scan() async {
@@ -71,14 +155,51 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       devices = await _discovery.scan();
+      hasScanned = true;
       final server = serverDevice;
       if (server != null && serverIp.isEmpty) {
         serverIp = server.ip;
       }
+      _syncPlacementsWithDevices();
     } finally {
       scanning = false;
       notifyListeners();
     }
+  }
+
+  /// 검색 결과를 배치에 반영: 같은 로케이터(MAC)의 IP/이름이
+  /// 바뀌었으면(DHCP 재할당, 카드 이름 변경 등) 자동 갱신한다.
+  void _syncPlacementsWithDevices() {
+    var changed = false;
+    for (final d in devices) {
+      if (d.isServer || !d.hasValidMac) continue;
+      final p =
+          placements.where((e) => e.locatorId == d.locatorId).firstOrNull;
+      if (p == null) continue;
+      if (p.ip != d.ip) {
+        p.ip = d.ip;
+        changed = true;
+      }
+      if (d.device.isNotEmpty && p.deviceName != d.device) {
+        p.deviceName = d.device;
+        changed = true;
+      }
+    }
+    if (changed) dirty = true; // notify는 scan()에서 일괄 수행
+  }
+
+  /// 배치돼 있지만 마지막 검색에서 발견되지 않은 로케이터
+  /// (전원 꺼짐, 교체됨, 다른 네트워크). 검색 전에는 판단하지 않는다.
+  List<PlacedLocator> get missingPlacements {
+    if (!hasScanned) return const [];
+    final found = {
+      for (final d in devices)
+        if (!d.isServer && d.hasValidMac) d.locatorId,
+    };
+    return [
+      for (final p in placements)
+        if (!found.contains(p.locatorId)) p,
+    ];
   }
 
   void setServerIp(String ip) {
@@ -92,6 +213,7 @@ class AppState extends ChangeNotifier {
   Future<void> loadFloorImage(String path) async {
     final bytes = await File(path).readAsBytes();
     final image = await decodeImageFromList(bytes);
+    _pushUndo();
     floorImage?.dispose();
     floorImage = image;
     floorImagePath = path;
@@ -104,6 +226,48 @@ class AppState extends ChangeNotifier {
 
   void setTransform(WorldTransform t) {
     transform = t;
+    notifyListeners();
+  }
+
+  /// 도면 삭제: 이미지와 경로만 제거하고 배치/스케일/원점은 유지한다.
+  void removeFloorImage() {
+    if (floorImage == null && floorImagePath == null) return;
+    _pushUndo();
+    floorImage?.dispose();
+    floorImage = null;
+    floorImagePath = null;
+    if (canvasMode == CanvasMode.adjustImage) canvasMode = CanvasMode.normal;
+    _markDirty();
+  }
+
+  /// 도면 조정 모드: 배치(월드 좌표)는 고정한 채 도면 이미지만 화면 기준
+  /// [screenDelta]만큼 이동한다 (원점을 반대로 옮기고 팬으로 보정).
+  void nudgeImage(Offset screenDelta) {
+    if (floorImage == null) return;
+    _pushUndo(coalesce: true);
+    final z = transform.zoom;
+    transform = transform.copyWith(
+      originPx: transform.originPx - screenDelta / z,
+      panPx: transform.panPx + screenDelta,
+    );
+    dirty = true;
+    notifyListeners();
+  }
+
+  /// 도면 조정 모드: 커서 위치의 도면 지점을 기준으로 배치는 고정한 채
+  /// 도면 이미지 크기만 [factor]배 조정한다 (m/px 스케일도 함께 변경).
+  void scaleImage(Offset cursorScreen, double factor) {
+    if (floorImage == null || factor <= 0) return;
+    _pushUndo(coalesce: true);
+    final z = transform.zoom;
+    final q = (cursorScreen - transform.panPx) / z; // 커서의 이미지 px 좌표
+    transform = transform.copyWith(
+      metersPerPixel: transform.metersPerPixel * factor,
+      zoom: z * factor,
+      panPx: transform.panPx + q * z * (1 - factor),
+      originPx: (transform.originPx + q * (factor - 1)) / factor,
+    );
+    dirty = true;
     notifyListeners();
   }
 
@@ -148,11 +312,13 @@ class AppState extends ChangeNotifier {
         notifyListeners();
         return true;
       case CanvasMode.setOrigin:
+        _pushUndo();
         transform = transform.copyWith(originPx: imagePx);
         canvasMode = CanvasMode.normal;
         _markDirty();
         return false;
       case CanvasMode.normal:
+      case CanvasMode.adjustImage:
         return false;
     }
   }
@@ -163,6 +329,7 @@ class AppState extends ChangeNotifier {
     if (p1 == null || p2 == null || distanceM <= 0) return;
     final pxDist = (p2 - p1).distance;
     if (pxDist <= 0) return;
+    _pushUndo();
     calibDistanceM = distanceM;
     transform = transform.copyWith(metersPerPixel: distanceM / pxDist);
     _markDirty();
@@ -170,6 +337,7 @@ class AppState extends ChangeNotifier {
 
   void setMetersPerPixel(double mpp) {
     if (mpp <= 0) return;
+    _pushUndo();
     transform = transform.copyWith(metersPerPixel: mpp);
     _markDirty();
   }
@@ -180,6 +348,7 @@ class AppState extends ChangeNotifier {
   void placeDevice(DiscoveredDevice device, Offset world) {
     if (!device.hasValidMac || device.isServer) return;
     if (isPlaced(device)) return;
+    _pushUndo();
     final p = PlacedLocator(
       locatorId: device.locatorId,
       deviceName: device.device,
@@ -195,6 +364,7 @@ class AppState extends ChangeNotifier {
   void moveLocator(String locatorId, Offset world) {
     final p = placements.where((e) => e.locatorId == locatorId).firstOrNull;
     if (p == null) return;
+    _pushUndo(coalesce: true); // 드래그 연속 이동은 한 단계로
     p.coordinate.x = _round2(world.dx);
     p.coordinate.y = _round2(world.dy);
     _markDirty();
@@ -206,6 +376,8 @@ class AppState extends ChangeNotifier {
   }
 
   void removePlacement(String locatorId) {
+    if (placements.every((p) => p.locatorId != locatorId)) return;
+    _pushUndo();
     placements.removeWhere((p) => p.locatorId == locatorId);
     if (selectedLocatorId == locatorId) selectedLocatorId = null;
     _markDirty();
@@ -243,7 +415,7 @@ class AppState extends ChangeNotifier {
   // =========================================================
   // 프로젝트 파일
   // =========================================================
-  ProjectFile _toProject() => ProjectFile(
+  ProjectFile toProject() => ProjectFile(
         serverIp: serverIp,
         floorPlanImagePath: floorImagePath,
         metersPerPixel: transform.metersPerPixel,
@@ -264,12 +436,12 @@ class AppState extends ChangeNotifier {
         Platform.isAndroid ||
         Platform.isIOS;
     if (needDialog) {
-      final path = await _storage.saveWithDialog(_toProject(),
+      final path = await _storage.saveWithDialog(toProject(),
           suggestedName: 'positions.${ProjectFile.extension}');
       if (path == null) return false;
       projectPath = path;
     } else {
-      await _storage.saveTo(projectPath!, _toProject());
+      await _storage.saveTo(projectPath!, toProject());
     }
     dirty = false;
     notifyListeners();
@@ -282,7 +454,13 @@ class AppState extends ChangeNotifier {
     final path = await _storage.pickOpenPath();
     if (path == null) return null;
     final project = await _storage.load(path);
+    return applyProject(project, path: path);
+  }
 
+  /// 프로젝트 데이터를 현재 상태에 적용한다 (열기/세션 복원 공용).
+  /// 반환: 없어진 도면 이미지 경로, 정상이면 null.
+  Future<String?> applyProject(ProjectFile project, {String? path}) async {
+    _clearUndo();
     serverIp = project.serverIp;
     calibP1 = project.calibP1;
     calibP2 = project.calibP2;
@@ -318,7 +496,15 @@ class AppState extends ChangeNotifier {
     return missingImage;
   }
 
+  /// 세션(마지막 작업 상태) 복원. 앱 시작 시 호출된다.
+  Future<void> restoreSession(SessionData session) async {
+    await applyProject(session.project, path: session.projectPath);
+    dirty = session.dirty;
+    notifyListeners();
+  }
+
   void newProject() {
+    _clearUndo();
     serverIp = serverDevice?.ip ?? '';
     floorImage?.dispose();
     floorImage = null;

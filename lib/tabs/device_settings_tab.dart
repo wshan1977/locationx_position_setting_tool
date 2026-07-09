@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/discovered_device.dart';
 import '../services/udp_control_service.dart';
+import '../widgets/password_gate.dart';
 import '../state/app_state.dart';
 
 /// 탭 1: AOA Locator 장치 설정.
@@ -288,6 +289,8 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
   // 동작
   // =========================================================
   Future<void> _doSetMqtt(DiscoveredDevice d, String host, int port) async {
+    final ok = await confirmSettingsPassword(context, 'MQTT 브로커 설정 변경');
+    if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
       final resp = await _control.setMqtt(
