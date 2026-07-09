@@ -68,7 +68,14 @@ class MqttState extends ChangeNotifier {
   String lastError = '';
   String host = '';
   int port = 1883;
-  String subscribeFilter = '#';
+
+  /// 기본 구독 필터. 루트 와일드카드 `#`는 공개 브로커(broker.hivemq.com 등)가
+  /// 거부(SUBACK 0x80)하므로 이 시스템의 토픽 루트인 silabs/#를 쓴다 (실측).
+  String subscribeFilter = defaultFilter;
+  static const defaultFilter = 'silabs/#';
+
+  /// 구세션에 저장된 레거시 `#` 필터를 silabs/#로 이관.
+  static String _normalizeFilter(String f) => f == '#' ? defaultFilter : f;
 
   bool paused = false;
 
@@ -87,7 +94,7 @@ class MqttState extends ChangeNotifier {
     host = newHost.trim();
     port = newPort;
     if (filter != null && filter.trim().isNotEmpty) {
-      subscribeFilter = filter.trim();
+      subscribeFilter = _normalizeFilter(filter.trim());
     }
     notifyListeners();
   }
@@ -98,7 +105,7 @@ class MqttState extends ChangeNotifier {
     host = newHost.trim();
     port = newPort;
     if (filter != null && filter.trim().isNotEmpty) {
-      subscribeFilter = filter.trim();
+      subscribeFilter = _normalizeFilter(filter.trim());
     }
     if (host.isEmpty) {
       lastError = '브로커 주소가 비어 있습니다';
@@ -141,6 +148,9 @@ class MqttState extends ChangeNotifier {
     }
 
     _client = client;
+    // 브로커가 구독을 거부하면(공개 브로커의 와일드카드 차단 등) 연결만 살아있고
+    // 데이터가 전혀 안 들어와 원인을 알 수 없다 — 명시적으로 에러로 표시한다.
+    client.onSubscribeFail = _onSubscribeFail;
     client.subscribe(subscribeFilter, MqttQos.atMostOnce);
     _updatesSub = client.updates?.listen(_onMessages);
 
@@ -180,6 +190,23 @@ class MqttState extends ChangeNotifier {
       lastError = '브로커와의 연결이 끊어졌습니다';
       notifyListeners();
     }
+  }
+
+  void _onSubscribeFail(String topic) {
+    // disconnect()는 비동기라 status를 나중에 덮어쓴다 — 여기서 동기 정리.
+    _uiTick?.cancel();
+    _uiTick = null;
+    _updatesSub?.cancel();
+    _updatesSub = null;
+    final c = _client;
+    _client = null;
+    if (c != null) {
+      c.onDisconnected = null;
+      c.disconnect();
+    }
+    status = MqttStatus.error;
+    lastError = "브로커가 '$topic' 구독을 거부했습니다";
+    notifyListeners();
   }
 
   void _onMessages(List<MqttReceivedMessage<MqttMessage>> events) {

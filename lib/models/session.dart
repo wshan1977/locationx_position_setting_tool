@@ -23,7 +23,7 @@ class SessionData {
     this.dirty = false,
     this.mqttHost = '',
     this.mqttPort = 1883,
-    this.mqttFilter = '#',
+    this.mqttFilter = 'silabs/#',
     this.mqttConnected = false,
   });
 
@@ -37,7 +37,7 @@ class SessionData {
         dirty: json['dirty'] == true,
         mqttHost: json['mqttHost']?.toString() ?? '',
         mqttPort: (json['mqttPort'] as num?)?.toInt() ?? 1883,
-        mqttFilter: json['mqttFilter']?.toString() ?? '#',
+        mqttFilter: json['mqttFilter']?.toString() ?? 'silabs/#',
         mqttConnected: json['mqttConnected'] == true,
       );
 

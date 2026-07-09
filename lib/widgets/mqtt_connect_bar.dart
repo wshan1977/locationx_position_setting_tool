@@ -50,14 +50,15 @@ class _MqttConnectBarState extends State<MqttConnectBar> {
         children: [
           hoverTip(
             'MQTT 브로커 주소 — 보통 서버 카드 IP\n'
-            '(mosquitto 브로커가 서버 카드에서 구동됩니다)',
+            '(mosquitto 브로커가 서버 카드에서 구동됩니다)\n'
+            'broker.hivemq.com 같은 외부 브로커 호스트명도 가능합니다.',
             SizedBox(
               width: 220,
               child: TextField(
                 controller: _host,
                 enabled: !connected && !connecting,
                 decoration: const InputDecoration(
-                  labelText: 'MQTT 브로커 (서버 카드 IP)',
+                  labelText: 'MQTT 브로커 (IP/호스트명)',
                   isDense: true,
                   border: OutlineInputBorder(),
                 ),
@@ -93,7 +94,7 @@ class _MqttConnectBarState extends State<MqttConnectBar> {
             )
           else
             hoverTip(
-              '브로커에 접속해 전체 토픽(#)을 구독합니다.\n'
+              '브로커에 접속해 LocationX 토픽(silabs/#)을 구독합니다.\n'
               '연결 상태는 재시작 시 자동으로 복원됩니다.',
               FilledButton.icon(
                 onPressed: connecting
