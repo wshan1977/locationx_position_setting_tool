@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/discovered_device.dart';
 import '../services/udp_control_service.dart';
+import '../widgets/hover_tip.dart';
 import '../widgets/password_gate.dart';
 import '../state/app_state.dart';
 
@@ -60,15 +61,18 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
       children: [
         Padding(
           padding: const EdgeInsets.all(8),
-          child: FilledButton.icon(
-            onPressed: app.scanning ? null : () => app.scan(),
-            icon: app.scanning
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.radar),
-            label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
+          child: hoverTip(
+            'UDP 브로드캐스트(포트 40010)로 LAN의 서버/로케이터 카드를 검색합니다.',
+            FilledButton.icon(
+              onPressed: app.scanning ? null : () => app.scan(),
+              icon: app.scanning
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.radar),
+              label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
+            ),
           ),
         ),
         Expanded(
@@ -216,15 +220,21 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            FilledButton.icon(
-              onPressed: isTarget ? null : () => app.setServerIp(d.ip),
-              icon: const Icon(Icons.gps_fixed),
-              label: Text(isTarget ? '현재 대상 서버' : '대상 서버로 선택'),
+            hoverTip(
+              '이 카드를 설정 전송·MQTT 연결의 대상 서버로 지정합니다.',
+              FilledButton.icon(
+                onPressed: isTarget ? null : () => app.setServerIp(d.ip),
+                icon: const Icon(Icons.gps_fixed),
+                label: Text(isTarget ? '현재 대상 서버' : '대상 서버로 선택'),
+              ),
             ),
-            OutlinedButton.icon(
-              onPressed: () => _openUrl('http://${d.ip}:8080'),
-              icon: const Icon(Icons.open_in_browser),
-              label: const Text('웹 설정 페이지 열기 (:8080)'),
+            hoverTip(
+              '서버 카드의 웹 설정 UI(포트 8080)를 브라우저로 엽니다.',
+              OutlinedButton.icon(
+                onPressed: () => _openUrl('http://${d.ip}:8080'),
+                icon: const Icon(Icons.open_in_browser),
+                label: const Text('웹 설정 페이지 열기 (:8080)'),
+              ),
             ),
           ],
         ),
@@ -259,20 +269,31 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlinedButton.icon(
-              onPressed: _busy ? null : () => _doLedBlink(d),
-              icon: const Icon(Icons.lightbulb),
-              label: const Text('LED 식별 (8초 점멸)'),
+            hoverTip(
+              '카드의 LED를 8초간 점멸시켜 현장에서 어떤 장치인지 확인합니다.\n'
+              '(카드 동작에는 영향 없음)',
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _doLedBlink(d),
+                icon: const Icon(Icons.lightbulb),
+                label: const Text('LED 식별 (8초 점멸)'),
+              ),
             ),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : () => _doRestartService(d),
-              icon: const Icon(Icons.restart_alt),
-              label: const Text('AOA 서비스 재시작'),
+            hoverTip(
+              '카드의 AOA 서비스를 재시작합니다.\n'
+              'MQTT 브로커 설정 변경 후 적용에 필요하며, 약 10초간 angle 송신이 중단됩니다.',
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _doRestartService(d),
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('AOA 서비스 재시작'),
+              ),
             ),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : () => _doReboot(d),
-              icon: const Icon(Icons.power_settings_new),
-              label: const Text('재부팅'),
+            hoverTip(
+              '카드를 재부팅합니다. 다시 켜질 때까지 1~2분 걸립니다.',
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _doReboot(d),
+                icon: const Icon(Icons.power_settings_new),
+                label: const Text('재부팅'),
+              ),
             ),
           ],
         ),
@@ -438,20 +459,25 @@ class _MqttSetFormState extends State<_MqttSetForm> {
           ),
         ),
         const SizedBox(width: 8),
-        FilledButton(
-          onPressed: widget.busy
-              ? null
-              : () {
-                  final host = _host.text.trim();
-                  final port = int.tryParse(_port.text.trim());
-                  if (host.isEmpty || port == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('호스트/포트를 올바르게 입력하세요')));
-                    return;
-                  }
-                  widget.onSubmit(host, port);
-                },
-          child: const Text('전송'),
+        hoverTip(
+          '이 카드가 접속할 MQTT 브로커 주소를 UDP로 설정합니다.\n'
+          '전송 후 AOA 서비스 재시작이 필요하며 비밀번호 확인이 뜹니다.',
+          FilledButton(
+            onPressed: widget.busy
+                ? null
+                : () {
+                    final host = _host.text.trim();
+                    final port = int.tryParse(_port.text.trim());
+                    if (host.isEmpty || port == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('호스트/포트를 올바르게 입력하세요')));
+                      return;
+                    }
+                    widget.onSubmit(host, port);
+                  },
+            child: const Text('전송'),
+          ),
         ),
       ],
     );

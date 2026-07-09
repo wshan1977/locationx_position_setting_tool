@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/discovered_device.dart';
 import '../models/placement.dart';
 import '../state/app_state.dart';
+import '../widgets/hover_tip.dart';
 
 /// 장치 검색 패널 (위치 설정 탭 왼쪽): 스캔 버튼 + 발견된 디바이스 목록.
 /// 로케이터 카드는 캔버스로 드래그할 수 있다.
@@ -27,15 +28,19 @@ class RightDevicePanel extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(8),
-            child: FilledButton.icon(
-              onPressed: app.scanning ? null : () => app.scan(),
-              icon: app.scanning
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.radar),
-              label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
+            child: hoverTip(
+              'UDP 브로드캐스트(포트 40010)로 LAN의 서버/로케이터 카드를 검색합니다.\n'
+              '배치된 로케이터의 IP가 바뀌었으면 자동으로 갱신됩니다.',
+              FilledButton.icon(
+                onPressed: app.scanning ? null : () => app.scan(),
+                icon: app.scanning
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.radar),
+                label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
+              ),
             ),
           ),
           Expanded(
@@ -111,9 +116,12 @@ class _ServerTile extends StatelessWidget {
                 label: Text('대상', style: TextStyle(fontSize: 10)),
                 visualDensity: VisualDensity.compact,
               )
-            : TextButton(
-                onPressed: () => app.setServerIp(device.ip),
-                child: const Text('선택'),
+            : hoverTip(
+                '이 카드를 설정 전송·MQTT 연결의 대상 서버로 지정합니다.',
+                TextButton(
+                  onPressed: () => app.setServerIp(device.ip),
+                  child: const Text('선택'),
+                ),
               ),
       ),
     );
@@ -197,6 +205,13 @@ class _LocatorTile extends StatelessWidget {
 
     if (!placeable) return tile;
 
+    return hoverTip(
+      '캔버스로 드래그해서 이 로케이터를 배치합니다.',
+      _buildDraggable(tile),
+    );
+  }
+
+  Widget _buildDraggable(Widget tile) {
     return Draggable<DiscoveredDevice>(
       data: device,
       feedback: Material(

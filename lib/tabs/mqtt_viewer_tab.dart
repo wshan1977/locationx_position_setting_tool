@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/mqtt_state.dart';
+import '../widgets/hover_tip.dart';
 import '../widgets/mqtt_connect_bar.dart';
 import 'position_live_view.dart';
 
@@ -110,9 +111,13 @@ class _MqttViewerTabState extends State<MqttViewerTab>
                       fontSize: 12, fontWeight: FontWeight.bold)),
               const Spacer(),
               if (_selectedPath != null)
-                TextButton(
-                  onPressed: () => setState(() => _selectedPath = null),
-                  child: const Text('전체 보기', style: TextStyle(fontSize: 11)),
+                hoverTip(
+                  '토픽 필터를 해제하고 전체 메시지를 표시합니다.',
+                  TextButton(
+                    onPressed: () => setState(() => _selectedPath = null),
+                    child:
+                        const Text('전체 보기', style: TextStyle(fontSize: 11)),
+                  ),
                 ),
             ],
           ),
@@ -328,18 +333,22 @@ class _MqttViewerTabState extends State<MqttViewerTab>
             ),
           ),
           const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: mqtt.isConnected
-                ? () {
-                    final topic = _pubTopic.text.trim();
-                    if (topic.isEmpty) return;
-                    mqtt.publish(topic, _pubPayload.text);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('발행됨: $topic')));
-                  }
-                : null,
-            icon: const Icon(Icons.send, size: 16),
-            label: const Text('발행'),
+          hoverTip(
+            '입력한 토픽으로 페이로드를 MQTT 발행합니다 (테스트용).\n'
+            '브로커에 연결되어 있어야 합니다.',
+            FilledButton.icon(
+              onPressed: mqtt.isConnected
+                  ? () {
+                      final topic = _pubTopic.text.trim();
+                      if (topic.isEmpty) return;
+                      mqtt.publish(topic, _pubPayload.text);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('발행됨: $topic')));
+                    }
+                  : null,
+              icon: const Icon(Icons.send, size: 16),
+              label: const Text('발행'),
+            ),
           ),
         ],
       ),

@@ -15,6 +15,7 @@ import 'state/mqtt_state.dart';
 import 'tabs/data_monitor_tab.dart';
 import 'tabs/device_settings_tab.dart';
 import 'tabs/mqtt_viewer_tab.dart';
+import 'widgets/hover_tip.dart';
 import 'widgets/toolbar.dart';
 
 Future<void> main() async {
@@ -193,19 +194,23 @@ class _CanvasAreaState extends State<_CanvasArea> {
               Positioned(
                 top: 8,
                 right: 8,
-                child: SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(value: false, label: Text('Top')),
-                    ButtonSegment(value: true, label: Text('3D')),
-                  ],
-                  selected: {_is3d},
-                  onSelectionChanged: (s) => setState(() => _is3d = s.first),
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: WidgetStatePropertyAll(
-                        Colors.white.withValues(alpha: 0.85)),
-                    textStyle:
-                        const WidgetStatePropertyAll(TextStyle(fontSize: 11.5)),
+                child: hoverTip(
+                  'Top: 위에서 본 도면에서 배치 편집 (드래그로 이동)\n'
+                  '3D: 설치 자세(orientation)를 입체로 확인',
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('Top')),
+                      ButtonSegment(value: true, label: Text('3D')),
+                    ],
+                    selected: {_is3d},
+                    onSelectionChanged: (s) => setState(() => _is3d = s.first),
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: WidgetStatePropertyAll(
+                          Colors.white.withValues(alpha: 0.85)),
+                      textStyle: const WidgetStatePropertyAll(
+                          TextStyle(fontSize: 11.5)),
+                    ),
                   ),
                 ),
               ),

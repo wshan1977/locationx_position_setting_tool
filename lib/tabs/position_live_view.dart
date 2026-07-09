@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -9,6 +10,7 @@ import '../canvas/world_transform.dart';
 import '../models/placement.dart';
 import '../state/app_state.dart';
 import '../state/mqtt_state.dart';
+import '../widgets/hover_tip.dart';
 
 /// MQTT 뷰어 탭의 서브탭: 3D 위치인식 확인.
 ///
@@ -135,6 +137,11 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   /// 태그별 위치 궤적 (world 좌표, 미터).
   final Map<String, _TagTrack> _tracks = {};
 
+  /// [태그 갱신]으로 제거된 태그의 제거 시각.
+  /// 이 시각 이후의 새 수신만 태그를 다시 살린다
+  /// (토픽 통계에 남은 마지막 메시지로 즉시 재생성되는 것을 방지).
+  final Map<String, DateTime> _dismissedAt = {};
+
   bool _is3d = true;
   bool _showCoverage = true;
   bool _showRays = true;
@@ -156,6 +163,16 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   Offset? _cursorWorld;
 
   MqttState? _mqtt;
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // 수신이 끊긴 뒤에도 경과 시간/슬립 상태가 갱신되도록 주기적으로 다시 그린다.
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _tracks.isNotEmpty) setState(() {});
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -170,6 +187,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
 
   @override
   void dispose() {
+    _tick?.cancel();
     _mqtt?.removeListener(_onMqtt);
     super.dispose();
   }
@@ -187,6 +205,11 @@ class _PositionLiveViewState extends State<PositionLiveView> {
       final stat = entry.value;
       final ts = stat.lastTs;
       if (ts == null) continue;
+      final dismissed = _dismissedAt[tagId];
+      if (dismissed != null) {
+        if (!ts.isAfter(dismissed)) continue; // 제거 이후 새 데이터 없음 → 숨김 유지
+        _dismissedAt.remove(tagId); // 새 신호 수신 → 다시 표시
+      }
       final track = _tracks.putIfAbsent(tagId, () => _TagTrack());
       if (!ts.isAfter(track.lastTs)) continue;
       try {
@@ -210,6 +233,33 @@ class _PositionLiveViewState extends State<PositionLiveView> {
       }
     }
     if (mounted) setState(() {});
+  }
+
+  /// [태그 갱신]: 슬립 태그를 제거하고 결과 메시지를 띄운다.
+  /// 제거된 태그는 갱신 시각 이후의 새 수신이 있어야 다시 나타난다.
+  void _refreshTags() {
+    final now = DateTime.now();
+    var removed = 0;
+    setState(() {
+      _tracks.removeWhere((id, t) {
+        final invalid = t.lastInvalidTs;
+        final last = invalid != null && invalid.isAfter(t.lastTs)
+            ? invalid
+            : t.lastTs;
+        final sleep = now.difference(last).inSeconds > _sleepAfterSec;
+        if (sleep) {
+          _dismissedAt[id] = now;
+          removed++;
+        }
+        return sleep;
+      });
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 3),
+      content: Text(removed == 0
+          ? '슬립 상태 태그가 없습니다 — 모든 태그가 수신 중입니다'
+          : '슬립 태그 $removed개를 제거했습니다. 새 신호가 수신되면 다시 표시됩니다.'),
+    ));
   }
 
   List<_AngleRay> _collectRays(MqttState mqtt) {
@@ -257,69 +307,103 @@ class _PositionLiveViewState extends State<PositionLiveView> {
             runSpacing: 4,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('3D')),
-                  ButtonSegment(value: false, label: Text('2D')),
-                ],
-                selected: {_is3d},
-                onSelectionChanged: (s) => setState(() => _is3d = s.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  textStyle:
-                      WidgetStatePropertyAll(TextStyle(fontSize: 11.5)),
+              hoverTip(
+                '3D: 회전 가능한 입체 시점 (드래그=회전)\n2D: 위에서 본 평면도 (드래그=이동)',
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('3D')),
+                    ButtonSegment(value: false, label: Text('2D')),
+                  ],
+                  selected: {_is3d},
+                  onSelectionChanged: (s) => setState(() => _is3d = s.first),
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    textStyle:
+                        WidgetStatePropertyAll(TextStyle(fontSize: 11.5)),
+                  ),
                 ),
               ),
               _legendPlate(),
               _legendDot(Colors.red, '태그(+오차원)'),
-              FilterChip(
-                label: const Text('angle 점선', style: TextStyle(fontSize: 11)),
-                selected: _showRays,
-                visualDensity: VisualDensity.compact,
-                onSelected: (v) => setState(() => _showRays = v),
+              hoverTip(
+                '로케이터가 측정한 태그 방향(azimuth/elevation) 점선을 표시합니다.',
+                FilterChip(
+                  label:
+                      const Text('angle 점선', style: TextStyle(fontSize: 11)),
+                  selected: _showRays,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (v) => setState(() => _showRays = v),
+                ),
               ),
-              FilterChip(
-                label: const Text('커버리지', style: TextStyle(fontSize: 11)),
-                selected: _showCoverage,
-                visualDensity: VisualDensity.compact,
-                onSelected: (v) => setState(() => _showCoverage = v),
+              hoverTip(
+                '천장 설치 로케이터의 바닥 커버리지 원을 표시합니다.',
+                FilterChip(
+                  label: const Text('커버리지', style: TextStyle(fontSize: 11)),
+                  selected: _showCoverage,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (v) => setState(() => _showCoverage = v),
+                ),
               ),
-              FilterChip(
-                label: const Text('도면', style: TextStyle(fontSize: 11)),
-                selected: _showFloor,
-                visualDensity: VisualDensity.compact,
-                onSelected: (v) => setState(() => _showFloor = v),
+              hoverTip(
+                '바닥에 도면 이미지를 표시합니다.',
+                FilterChip(
+                  label: const Text('도면', style: TextStyle(fontSize: 11)),
+                  selected: _showFloor,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (v) => setState(() => _showFloor = v),
+                ),
               ),
-              FilterChip(
-                label: const Text('잔상', style: TextStyle(fontSize: 11)),
-                selected: _showTrail,
-                visualDensity: VisualDensity.compact,
-                onSelected: (v) => setState(() => _showTrail = v),
+              hoverTip(
+                '태그 이동 궤적(잔상)을 표시합니다. 꺼도 기록은 계속 쌓입니다.',
+                FilterChip(
+                  label: const Text('잔상', style: TextStyle(fontSize: 11)),
+                  selected: _showTrail,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (v) => setState(() => _showTrail = v),
+                ),
               ),
-              TextButton.icon(
-                onPressed: () => setState(() {
-                  for (final t in _tracks.values) {
-                    t.trail.clear();
-                  }
-                }),
-                icon: const Icon(Icons.clear_all, size: 15),
-                label: const Text('잔상 지우기', style: TextStyle(fontSize: 12)),
+              hoverTip(
+                '모든 태그의 궤적만 삭제합니다 (현재 위치는 유지).',
+                TextButton.icon(
+                  onPressed: () => setState(() {
+                    for (final t in _tracks.values) {
+                      t.trail.clear();
+                    }
+                  }),
+                  icon: const Icon(Icons.clear_all, size: 15),
+                  label:
+                      const Text('잔상 지우기', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              Tooltip(
+                message:
+                    '${_sleepAfterSec.toInt()}초 이상 수신이 없는(슬립) 태그를 화면에서 제거합니다.\n'
+                    '제거된 태그는 새 신호가 수신될 때만 다시 나타납니다.',
+                waitDuration: const Duration(seconds: 1),
+                child: TextButton.icon(
+                  onPressed: () => _refreshTags(),
+                  icon: const Icon(Icons.sync, size: 15),
+                  label: const Text('태그 갱신', style: TextStyle(fontSize: 12)),
+                ),
               ),
               Text(
                 _is3d ? '드래그: 회전 · 가운데 버튼: 이동 · 휠: 줌' : '드래그: 이동 · 휠: 줌',
                 style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
               ),
-              TextButton.icon(
-                onPressed: () => setState(() {
-                  _tracks.clear();
-                  _zoom = null;
-                  _scale3d = null;
-                  _yaw = -0.6;
-                  _pitch = 1.0;
-                  _pan3d = Offset.zero;
-                }),
-                icon: const Icon(Icons.refresh, size: 15),
-                label: const Text('뷰 초기화', style: TextStyle(fontSize: 12)),
+              hoverTip(
+                '태그·궤적을 모두 지우고 카메라 시점을 초기 상태로 되돌립니다.',
+                TextButton.icon(
+                  onPressed: () => setState(() {
+                    _tracks.clear();
+                    _zoom = null;
+                    _scale3d = null;
+                    _yaw = -0.6;
+                    _pitch = 1.0;
+                    _pan3d = Offset.zero;
+                  }),
+                  icon: const Icon(Icons.refresh, size: 15),
+                  label: const Text('뷰 초기화', style: TextStyle(fontSize: 12)),
+                ),
               ),
             ],
           ),
@@ -605,6 +689,17 @@ const _tagColors = [
 
 Color _tagColor(String tagId) =>
     _tagColors[tagId.hashCode.abs() % _tagColors.length];
+
+/// 마지막 수신 경과 시간 표기 (예: '42초 전', '5분 전', '2시간 전').
+String _ageText(double ageSec) {
+  if (ageSec < 60) return '${ageSec.toStringAsFixed(0)}초 전';
+  if (ageSec < 3600) return '${(ageSec / 60).floor()}분 전';
+  return '${(ageSec / 3600).floor()}시간 전';
+}
+
+/// 이 시간(초) 이상 수신이 없으면 슬립 상태로 표시하고,
+/// [태그 갱신]을 누르면 화면에서 제거된다.
+const double _sleepAfterSec = 10;
 
 void _dashedLine(Canvas canvas, Offset a, Offset b, Paint paint,
     {double dash = 7, double gap = 5}) {
@@ -978,8 +1073,8 @@ class _Live3dPainter extends CustomPainter {
 
   void _drawTag3d(Canvas canvas, String tagId, _TagTrack track) {
     if (!track.everValid) return;
+    // 수신이 끊겨도 마지막 위치를 계속 표시한다 ([태그 갱신]으로 정리).
     final ageSec = now.difference(track.lastTs).inMilliseconds / 1000.0;
-    if (ageSec > 30) return;
     final color = _colorFor(tagId);
 
     if (showTrail && track.trail.length >= 2) {
@@ -998,11 +1093,13 @@ class _Live3dPainter extends CustomPainter {
     }
 
     final live = ageSec < 3;
+    final sleep = ageSec > _sleepAfterSec; // 슬립: 회색 표시, 오차원 생략
+    final drawColor = sleep ? Colors.blueGrey : color;
     final pt = _p(track.pos.dx, track.pos.dy, track.z);
     final shadow = _p(track.pos.dx, track.pos.dy, 0);
 
     // 오차 원 (태그 높이 평면, 표시상 3m 상한)
-    if (track.stdevXY > 0.05) {
+    if (!sleep && track.stdevXY > 0.05) {
       final rM = math.min(track.stdevXY, 3.0);
       final path = Path();
       const seg = 24;
@@ -1026,12 +1123,12 @@ class _Live3dPainter extends CustomPainter {
         shadow,
         pt,
         Paint()
-          ..color = color.withValues(alpha: 0.3)
+          ..color = drawColor.withValues(alpha: 0.3)
           ..strokeWidth = 1);
     canvas.drawCircle(
-        shadow, 3, Paint()..color = color.withValues(alpha: 0.25));
-    canvas.drawCircle(
-        pt, 7, Paint()..color = live ? color : color.withValues(alpha: 0.35));
+        shadow, 3, Paint()..color = drawColor.withValues(alpha: 0.25));
+    canvas.drawCircle(pt, 7,
+        Paint()..color = live ? color : drawColor.withValues(alpha: 0.35));
     canvas.drawCircle(
         pt,
         7,
@@ -1046,8 +1143,8 @@ class _Live3dPainter extends CustomPainter {
       pt + const Offset(10, 4),
       '$short (${track.pos.dx.toStringAsFixed(2)}, '
       '${track.pos.dy.toStringAsFixed(2)}, ${track.z.toStringAsFixed(2)})'
-      '${live ? '' : ' · ${ageSec.toStringAsFixed(0)}초 전'}',
-      color: color,
+      '${live ? '' : (sleep ? ' · 슬립 ${_ageText(ageSec)}' : ' · ${_ageText(ageSec)}')}',
+      color: sleep ? Colors.blueGrey.shade600 : color,
     );
   }
 
@@ -1149,6 +1246,8 @@ class _Live2dPainter extends CustomPainter {
             ..color = Colors.grey.shade400);
     }
 
+    _drawGrid2d(canvas, size);
+
     final placementById = {for (final p in app.placements) p.locatorId: p};
 
     if (showCoverage) {
@@ -1171,6 +1270,69 @@ class _Live2dPainter extends CustomPainter {
     }
 
     tracks.forEach((tagId, track) => _drawTag2d(canvas, tagId, track));
+  }
+
+  /// 화면상 그리드 간격이 40px 이상이 되도록 1/2/5... m 스텝을 고른다.
+  double _gridStepMeters() {
+    final pxPerMeter = view.zoom / view.metersPerPixel;
+    double step = 1.0;
+    const factors = [1.0, 2.0, 5.0];
+    var scale = 1.0;
+    while (true) {
+      for (final f in factors) {
+        step = f * scale;
+        if (step * pxPerMeter >= 40) return step;
+      }
+      scale *= 10;
+      if (scale > 1e6) return step;
+    }
+  }
+
+  /// 위치 설정 캔버스와 동일한 미터 그리드 + 원점 축 (거리 확인용).
+  void _drawGrid2d(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.blueGrey.withValues(alpha: 0.25)
+      ..strokeWidth = 1;
+
+    final step = _gridStepMeters();
+    final wTopLeft = view.screenToWorld(Offset.zero);
+    final wBottomRight = view.screenToWorld(Offset(size.width, size.height));
+
+    final xMin =
+        (math.min(wTopLeft.dx, wBottomRight.dx) / step).floor() * step;
+    final xMax = math.max(wTopLeft.dx, wBottomRight.dx);
+    final yMin =
+        (math.min(wTopLeft.dy, wBottomRight.dy) / step).floor() * step;
+    final yMax = math.max(wTopLeft.dy, wBottomRight.dy);
+
+    final labelColor = Colors.blueGrey.withValues(alpha: 0.7);
+    for (var x = xMin; x <= xMax; x += step) {
+      final s = view.worldToScreen(Offset(x, 0));
+      canvas.drawLine(Offset(s.dx, 0), Offset(s.dx, size.height), paint);
+      _label(canvas, Offset(s.dx + 2, size.height - 16), '${_fmtM(x)}m',
+          color: labelColor, fontSize: 10);
+    }
+    for (var y = yMin; y <= yMax; y += step) {
+      final s = view.worldToScreen(Offset(0, y));
+      canvas.drawLine(Offset(0, s.dy), Offset(size.width, s.dy), paint);
+      _label(canvas, Offset(2, s.dy + 2), '${_fmtM(y)}m',
+          color: labelColor, fontSize: 10);
+    }
+
+    // 원점 축 표시
+    final origin = view.worldToScreen(Offset.zero);
+    canvas.drawLine(origin, origin + const Offset(40, 0),
+        Paint()..color = Colors.red.withValues(alpha: 0.7)..strokeWidth = 2);
+    canvas.drawLine(origin, origin + const Offset(0, -40),
+        Paint()..color = Colors.green.withValues(alpha: 0.7)..strokeWidth = 2);
+    canvas.drawCircle(origin, 4, Paint()..color = Colors.red);
+    _label(canvas, origin + const Offset(6, 6), '(0,0)',
+        color: Colors.red, fontSize: 11);
+  }
+
+  static String _fmtM(double v) {
+    final r = (v * 100).round() / 100;
+    return r == r.roundToDouble() ? r.toInt().toString() : r.toString();
   }
 
   /// 2D: 로케이터를 회전된 보드 사각형 + 기준축 노치 + 설치 판정 라벨로.
@@ -1274,8 +1436,8 @@ class _Live2dPainter extends CustomPainter {
 
   void _drawTag2d(Canvas canvas, String tagId, _TagTrack track) {
     if (!track.everValid) return;
+    // 수신이 끊겨도 마지막 위치를 계속 표시한다 ([태그 갱신]으로 정리).
     final ageSec = now.difference(track.lastTs).inMilliseconds / 1000.0;
-    if (ageSec > 30) return;
     final color = _colorFor(tagId);
 
     if (showTrail && track.trail.length >= 2) {
@@ -1293,9 +1455,11 @@ class _Live2dPainter extends CustomPainter {
 
     final screen = view.worldToScreen(track.pos);
     final live = ageSec < 3;
+    final sleep = ageSec > _sleepAfterSec; // 슬립: 회색 표시, 오차원 생략
+    final drawColor = sleep ? Colors.blueGrey : color;
 
     // 오차 원 (표시상 3m 상한)
-    if (track.stdevXY > 0.05) {
+    if (!sleep && track.stdevXY > 0.05) {
       final r = _len(math.min(track.stdevXY, 3.0));
       canvas.drawCircle(
           screen, r, Paint()..color = color.withValues(alpha: 0.10));
@@ -1309,7 +1473,7 @@ class _Live2dPainter extends CustomPainter {
     }
 
     canvas.drawCircle(screen, 7,
-        Paint()..color = live ? color : color.withValues(alpha: 0.35));
+        Paint()..color = live ? color : drawColor.withValues(alpha: 0.35));
     canvas.drawCircle(
         screen,
         7,
@@ -1324,8 +1488,8 @@ class _Live2dPainter extends CustomPainter {
       screen + const Offset(10, 4),
       '$short (${track.pos.dx.toStringAsFixed(2)}, '
       '${track.pos.dy.toStringAsFixed(2)}, ${track.z.toStringAsFixed(2)})'
-      '${live ? '' : ' · ${ageSec.toStringAsFixed(0)}초 전'}',
-      color: color,
+      '${live ? '' : (sleep ? ' · 슬립 ${_ageText(ageSec)}' : ' · ${_ageText(ageSec)}')}',
+      color: sleep ? Colors.blueGrey.shade600 : color,
     );
   }
 

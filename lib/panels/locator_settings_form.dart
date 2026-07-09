@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/placement.dart';
 import '../services/udp_control_service.dart';
 import '../state/app_state.dart';
+import '../widgets/hover_tip.dart';
 import '../widgets/password_gate.dart';
 import 'form_widgets.dart';
 
@@ -66,33 +67,42 @@ class LocatorSettingsForm extends StatelessWidget {
         const SizedBox(height: 8),
         Row(children: [
           Expanded(
-              child: NumField(
-            label: 'X',
-            value: p.coordinate.x,
-            onChanged: (v) {
-              p.coordinate.x = v;
-              app.placementEdited();
-            },
+              child: _cfgTip(
+            '설치 위치 X 좌표 (m) — 도면 원점 기준.\n캔버스에서 마커를 드래그해도 변경됩니다.',
+            NumField(
+              label: 'X',
+              value: p.coordinate.x,
+              onChanged: (v) {
+                p.coordinate.x = v;
+                app.placementEdited();
+              },
+            ),
           )),
           const SizedBox(width: 6),
           Expanded(
-              child: NumField(
-            label: 'Y',
-            value: p.coordinate.y,
-            onChanged: (v) {
-              p.coordinate.y = v;
-              app.placementEdited();
-            },
+              child: _cfgTip(
+            '설치 위치 Y 좌표 (m) — 도면 원점 기준.\n캔버스에서 마커를 드래그해도 변경됩니다.',
+            NumField(
+              label: 'Y',
+              value: p.coordinate.y,
+              onChanged: (v) {
+                p.coordinate.y = v;
+                app.placementEdited();
+              },
+            ),
           )),
           const SizedBox(width: 6),
           Expanded(
-              child: NumField(
-            label: 'Z (높이)',
-            value: p.coordinate.z,
-            onChanged: (v) {
-              p.coordinate.z = v;
-              app.placementEdited();
-            },
+              child: _cfgTip(
+            '설치 높이 (m) — 바닥에서 안테나까지.\n위치 계산과 커버리지 반경에 직접 영향을 줍니다.',
+            NumField(
+              label: 'Z (높이)',
+              value: p.coordinate.z,
+              onChanged: (v) {
+                p.coordinate.z = v;
+                app.placementEdited();
+              },
+            ),
           )),
         ]),
         const SizedBox(height: 16),
@@ -103,36 +113,46 @@ class LocatorSettingsForm extends StatelessWidget {
         const SizedBox(height: 8),
         Row(children: [
           Expanded(
-              child: NumField(
-            label: 'X',
-            value: p.orientation.x,
-            fractionDigits: 0,
-            onChanged: (v) {
-              p.orientation.x = v;
-              app.placementEdited();
-            },
+              child: _cfgTip(
+            'X축 회전 (도) — 보드의 앞뒤 기울기.\n천장 수평 설치 기본 0.',
+            NumField(
+              label: 'X',
+              value: p.orientation.x,
+              fractionDigits: 0,
+              onChanged: (v) {
+                p.orientation.x = v;
+                app.placementEdited();
+              },
+            ),
           )),
           const SizedBox(width: 6),
           Expanded(
-              child: NumField(
-            label: 'Y',
-            value: p.orientation.y,
-            fractionDigits: 0,
-            onChanged: (v) {
-              p.orientation.y = v;
-              app.placementEdited();
-            },
+              child: _cfgTip(
+            'Y축 회전 (도) — 보드가 바라보는 방향.\n천장 설치(아래를 봄) 기본 180, 바닥 설치 0.',
+            NumField(
+              label: 'Y',
+              value: p.orientation.y,
+              fractionDigits: 0,
+              onChanged: (v) {
+                p.orientation.y = v;
+                app.placementEdited();
+              },
+            ),
           )),
           const SizedBox(width: 6),
           Expanded(
-              child: NumField(
-            label: 'Z',
-            value: p.orientation.z,
-            fractionDigits: 0,
-            onChanged: (v) {
-              p.orientation.z = v;
-              app.placementEdited();
-            },
+              child: _cfgTip(
+            'Z축 회전 (도) — 보드 기준축(x, 0° 노치)이 향하는 수평 방향.\n'
+            '3D 뷰의 빨강/초록 노치로 확인할 수 있습니다. 기본 90.',
+            NumField(
+              label: 'Z',
+              value: p.orientation.z,
+              fractionDigits: 0,
+              onChanged: (v) {
+                p.orientation.z = v;
+                app.placementEdited();
+              },
+            ),
           )),
         ]),
         const SizedBox(height: 8),
@@ -293,16 +313,23 @@ class LocatorSettingsForm extends StatelessWidget {
         ),
 
         const Divider(height: 28),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-          onPressed: () => app.removePlacement(p.locatorId),
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('캔버스에서 제거'),
+        _cfgTip(
+          '이 로케이터 배치를 삭제합니다 (Ctrl+Z로 복구 가능).\n'
+          '서버로 전송하기 전까지 서버에는 반영되지 않습니다.',
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => app.removePlacement(p.locatorId),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('캔버스에서 제거'),
+          ),
         ),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => app.selectLocator(null),
-          child: const Text('선택 해제 (전역 설정 보기)'),
+        _cfgTip(
+          '로케이터 선택을 해제하고 전역 Positioning 설정 폼을 표시합니다.',
+          TextButton(
+            onPressed: () => app.selectLocator(null),
+            child: const Text('선택 해제 (전역 설정 보기)'),
+          ),
         ),
       ],
     );
@@ -446,10 +473,15 @@ class _MqttBrokerSectionState extends State<_MqttBrokerSection> {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: FilledButton.icon(
-                onPressed: _busy ? null : () => _doSetMqtt(ip),
-                icon: const Icon(Icons.send, size: 16),
-                label: const Text('카드에 전송'),
+              child: Tooltip(
+                message: '이 카드가 접속할 MQTT 브로커 주소를 UDP로 설정합니다.\n'
+                    '전송 후 AOA 서비스 재시작이 필요하며 비밀번호 확인이 뜹니다.',
+                waitDuration: const Duration(seconds: 1),
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : () => _doSetMqtt(ip),
+                  icon: const Icon(Icons.send, size: 16),
+                  label: const Text('카드에 전송'),
+                ),
               ),
             ),
           ]),
@@ -515,20 +547,30 @@ class _DeviceControlButtonsState extends State<_DeviceControlButtons> {
       spacing: 6,
       runSpacing: 6,
       children: [
-        OutlinedButton.icon(
-          onPressed: _busy ? null : () => _doLed(ip),
-          icon: const Icon(Icons.lightbulb, size: 16),
-          label: const Text('LED 식별', style: TextStyle(fontSize: 12)),
+        hoverTip(
+          '카드의 LED를 8초간 점멸시켜 현장에서 어떤 장치인지 확인합니다.',
+          OutlinedButton.icon(
+            onPressed: _busy ? null : () => _doLed(ip),
+            icon: const Icon(Icons.lightbulb, size: 16),
+            label: const Text('LED 식별', style: TextStyle(fontSize: 12)),
+          ),
         ),
-        OutlinedButton.icon(
-          onPressed: _busy ? null : () => _doRestart(ip),
-          icon: const Icon(Icons.restart_alt, size: 16),
-          label: const Text('AOA 서비스 재시작', style: TextStyle(fontSize: 12)),
+        hoverTip(
+          '카드의 AOA 서비스를 재시작합니다.\n약 10초간 angle 송신이 중단됩니다.',
+          OutlinedButton.icon(
+            onPressed: _busy ? null : () => _doRestart(ip),
+            icon: const Icon(Icons.restart_alt, size: 16),
+            label:
+                const Text('AOA 서비스 재시작', style: TextStyle(fontSize: 12)),
+          ),
         ),
-        OutlinedButton.icon(
-          onPressed: _busy ? null : () => _doReboot(ip),
-          icon: const Icon(Icons.power_settings_new, size: 16),
-          label: const Text('재부팅', style: TextStyle(fontSize: 12)),
+        hoverTip(
+          '카드를 재부팅합니다. 다시 켜질 때까지 1~2분 걸립니다.',
+          OutlinedButton.icon(
+            onPressed: _busy ? null : () => _doReboot(ip),
+            icon: const Icon(Icons.power_settings_new, size: 16),
+            label: const Text('재부팅', style: TextStyle(fontSize: 12)),
+          ),
         ),
       ],
     );

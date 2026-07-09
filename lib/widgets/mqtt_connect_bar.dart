@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../state/mqtt_state.dart';
+import 'hover_tip.dart';
 
 /// 데이터 수신 / MQTT 뷰어 탭 공용 브로커 연결 바.
 /// 하나의 MqttState 연결을 두 탭이 공유한다.
@@ -47,58 +48,72 @@ class _MqttConnectBarState extends State<MqttConnectBar> {
       padding: const EdgeInsets.all(8),
       child: Row(
         children: [
-          SizedBox(
-            width: 220,
-            child: TextField(
-              controller: _host,
-              enabled: !connected && !connecting,
-              decoration: const InputDecoration(
-                labelText: 'MQTT 브로커 (서버 카드 IP)',
-                isDense: true,
-                border: OutlineInputBorder(),
+          hoverTip(
+            'MQTT 브로커 주소 — 보통 서버 카드 IP\n'
+            '(mosquitto 브로커가 서버 카드에서 구동됩니다)',
+            SizedBox(
+              width: 220,
+              child: TextField(
+                controller: _host,
+                enabled: !connected && !connecting,
+                decoration: const InputDecoration(
+                  labelText: 'MQTT 브로커 (서버 카드 IP)',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 80,
-            child: TextField(
-              controller: _port,
-              enabled: !connected && !connecting,
-              decoration: const InputDecoration(
-                labelText: '포트',
-                isDense: true,
-                border: OutlineInputBorder(),
+          hoverTip(
+            'MQTT 포트 (기본 1883)',
+            SizedBox(
+              width: 80,
+              child: TextField(
+                controller: _port,
+                enabled: !connected && !connecting,
+                decoration: const InputDecoration(
+                  labelText: '포트',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
               ),
-              keyboardType: TextInputType.number,
             ),
           ),
           const SizedBox(width: 8),
           if (connected)
-            FilledButton.icon(
-              onPressed: () => mqtt.disconnect(),
-              icon: const Icon(Icons.link_off),
-              label: const Text('연결 해제'),
+            hoverTip(
+              '브로커 연결을 끊습니다 (수신된 데이터는 유지).',
+              FilledButton.icon(
+                onPressed: () => mqtt.disconnect(),
+                icon: const Icon(Icons.link_off),
+                label: const Text('연결 해제'),
+              ),
             )
           else
-            FilledButton.icon(
-              onPressed: connecting
-                  ? null
-                  : () {
-                      final host = _host.text.trim().isEmpty
-                          ? context.read<AppState>().serverIp
-                          : _host.text.trim();
-                      _host.text = host;
-                      final port = int.tryParse(_port.text.trim()) ?? 1883;
-                      mqtt.connect(host, port);
-                    },
-              icon: connecting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.link),
-              label: Text(connecting ? '연결 중...' : '연결'),
+            hoverTip(
+              '브로커에 접속해 전체 토픽(#)을 구독합니다.\n'
+              '연결 상태는 재시작 시 자동으로 복원됩니다.',
+              FilledButton.icon(
+                onPressed: connecting
+                    ? null
+                    : () {
+                        final host = _host.text.trim().isEmpty
+                            ? context.read<AppState>().serverIp
+                            : _host.text.trim();
+                        _host.text = host;
+                        final port = int.tryParse(_port.text.trim()) ?? 1883;
+                        mqtt.connect(host, port);
+                      },
+                icon: connecting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.link),
+                label: Text(connecting ? '연결 중...' : '연결'),
+              ),
             ),
           const SizedBox(width: 12),
           _statusChip(mqtt),

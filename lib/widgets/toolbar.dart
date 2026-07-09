@@ -2,8 +2,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/config_api_client.dart';
 import '../services/session_storage.dart';
 import '../state/app_state.dart';
+import 'hover_tip.dart';
 import 'password_gate.dart';
 import 'save_dialog.dart';
 
@@ -88,13 +90,27 @@ class AppToolbar extends StatelessWidget {
                 child: Text('(저장 안 됨) *',
                     style: TextStyle(fontSize: 12, color: Colors.grey)),
               ),
-            FilledButton.icon(
-              onPressed: () async {
-                final ok = await confirmSettingsPassword(context, '서버로 전송');
-                if (ok && context.mounted) showPushToServerDialog(context);
-              },
-              icon: const Icon(Icons.cloud_upload, size: 18),
-              label: const Text('서버로 전송'),
+            hoverTip(
+              '서버 카드의 현재 positioning 설정(전역+로케이터 배치)을 읽어와 반영합니다.\n'
+              '도면/스케일/원점은 유지되며 Ctrl+Z로 되돌릴 수 있습니다.',
+              OutlinedButton.icon(
+                onPressed: () => _pullFromServer(context, app),
+                icon: const Icon(Icons.cloud_download, size: 18),
+                label: const Text('서버에서 읽기'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            hoverTip(
+              '캔버스 배치와 전역 설정을 서버 카드에 적용합니다.\n'
+              '기존 설정은 백업 후 교체되며 비밀번호 확인이 필요합니다.',
+              FilledButton.icon(
+                onPressed: () async {
+                  final ok = await confirmSettingsPassword(context, '서버로 전송');
+                  if (ok && context.mounted) showPushToServerDialog(context);
+                },
+                icon: const Icon(Icons.cloud_upload, size: 18),
+                label: const Text('서버로 전송'),
+              ),
             ),
           ],
         ),
@@ -184,6 +200,52 @@ class AppToolbar extends StatelessWidget {
       }
     }
     action();
+  }
+
+  /// 서버의 현재 positioning 설정을 읽어 캔버스/전역 설정에 반영한다.
+  Future<void> _pullFromServer(BuildContext context, AppState app) async {
+    void snack(String msg) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
+      }
+    }
+
+    if (app.serverIp.isEmpty) {
+      snack('서버 IP가 설정되지 않았습니다. [장치 검색]으로 서버 카드를 먼저 찾으세요.');
+      return;
+    }
+    try {
+      final fetched = await ConfigApiClient(app.serverIp).fetchPositioning();
+      if (!context.mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('서버 설정 반영'),
+          content: Text(
+            '서버(${app.serverIp})의 현재 설정:\n'
+            '· ID: ${fetched.id}\n'
+            '· 로케이터: ${fetched.locators.length}개\n\n'
+            '현재 캔버스 배치(${app.placements.length}개)와 전역 설정을 '
+            '서버 내용으로 교체합니다.\n도면/스케일/원점은 유지되며, '
+            'Ctrl+Z로 되돌릴 수 있습니다.',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('취소')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('반영')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      app.applyServerConfig(fetched);
+      snack('서버 설정을 반영했습니다 (로케이터 ${fetched.locators.length}개)');
+    } catch (e) {
+      snack('서버에서 읽기 실패: $e');
+    }
   }
 
   Future<void> _open(BuildContext context, AppState app) async {

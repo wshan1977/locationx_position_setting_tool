@@ -391,6 +391,45 @@ class AppState extends ChangeNotifier {
   static double _round2(double v) => (v * 100).roundToDouble() / 100;
 
   // =========================================================
+  // 서버 설정 읽기 반영
+  // =========================================================
+  /// 서버에서 읽어온 config를 현재 상태에 반영한다.
+  /// 전역 설정과 로케이터 배치를 서버 내용으로 교체한다 (Ctrl+Z로 복귀 가능).
+  /// 도면/스케일/원점은 서버에 없는 정보이므로 그대로 유지한다.
+  void applyServerConfig(PositioningConfig fetched) {
+    _pushUndo();
+    globals = PositioningConfig(
+      version: fetched.version,
+      id: fetched.id,
+      estimationModeLocation: fetched.estimationModeLocation,
+      validationModeLocation: fetched.validationModeLocation,
+      estimationIntervalSec: fetched.estimationIntervalSec,
+      locationFiltering: fetched.locationFiltering,
+      locationFilteringWeight: fetched.locationFilteringWeight,
+      numberOfSequenceIds: fetched.numberOfSequenceIds,
+      maximumSequenceIdDiffs: fetched.maximumSequenceIdDiffs,
+      extras: Map<String, dynamic>.from(fetched.extras),
+    );
+    placements.clear();
+    for (final l in fetched.locators) {
+      // 검색된 장치와 매칭되면 이름/IP를 채운다 (이후 검색 시에도 자동 동기화)
+      final live = devices
+          .where((d) => !d.isServer && d.hasValidMac && d.locatorId == l.id)
+          .firstOrNull;
+      placements.add(PlacedLocator(
+        locatorId: l.id,
+        deviceName: live?.device ?? '',
+        ip: live?.ip ?? '',
+        coordinate: l.coordinate.copy(),
+        orientation: l.orientation.copy(),
+        config: Map<String, dynamic>.from(l.config),
+      ));
+    }
+    selectedLocatorId = null;
+    _markDirty();
+  }
+
+  // =========================================================
   // 서버 전송용 병합
   // =========================================================
   /// 서버에서 가져온 config의 전역 필드 + 미지 필드를 유지하되,
