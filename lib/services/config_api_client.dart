@@ -25,6 +25,23 @@ class ApplyResult {
   });
 }
 
+/// 서버 카드의 MQTT 브로커 설정 (config 서버 v2.0.0+).
+/// staged*: 스테이징(mqtt_server_setting.txt) 값,
+/// applied*: 서비스에 반영된(mqtt.env) 값 — 재시작 전까지는 다를 수 있다.
+class ServerMqttSettings {
+  final String stagedHost;
+  final int stagedPort;
+  final String appliedHost;
+  final int appliedPort;
+
+  ServerMqttSettings({
+    required this.stagedHost,
+    required this.stagedPort,
+    required this.appliedHost,
+    required this.appliedPort,
+  });
+}
+
 /// 서버 카드 config 서버(포트 8080)의 /api/* 클라이언트.
 class ConfigApiClient {
   final String host;
@@ -81,6 +98,25 @@ class ConfigApiClient {
   Future<int> pushPositioning(PositioningConfig config) async {
     final json = await _post('/api/positioning', config.toJson());
     return (json['locator_count'] as num?)?.toInt() ?? 0;
+  }
+
+  /// GET /api/mqtt — 서버 카드의 MQTT 브로커 설정 조회 (v2.0.0+).
+  Future<ServerMqttSettings> fetchMqtt() async {
+    final json = await _get('/api/mqtt');
+    return ServerMqttSettings(
+      stagedHost: json['broker_host']?.toString() ?? '',
+      stagedPort: (json['broker_port'] as num?)?.toInt() ?? 1883,
+      appliedHost: json['applied_broker_host']?.toString() ?? '',
+      appliedPort: (json['applied_broker_port'] as num?)?.toInt() ?? 1883,
+    );
+  }
+
+  /// POST /api/mqtt — MQTT 브로커 스테이징 저장 (반영은 apply).
+  Future<void> pushMqtt(String brokerHost, int brokerPort) async {
+    await _post('/api/mqtt', {
+      'broker_host': brokerHost,
+      'broker_port': brokerPort,
+    });
   }
 
   /// POST /api/apply — 백업 후 서비스 파일 교체 (+선택적 재시작).

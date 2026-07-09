@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/discovered_device.dart';
+import '../services/config_api_client.dart';
 import '../services/udp_control_service.dart';
 import '../widgets/hover_tip.dart';
 import '../widgets/password_gate.dart';
@@ -238,9 +239,19 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
             ),
           ],
         ),
+        const SizedBox(height: 20),
+        Text('MQTT 브로커 설정 (positioning 서비스)',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _ServerMqttSection(
+          key: ValueKey('server-mqtt-${d.dedupeKey}'),
+          serverIp: d.ip,
+        ),
         const SizedBox(height: 12),
         Text(
           '이 카드에서 mosquitto MQTT 브로커(기본 포트 1883)와 positioning 서비스가 구동됩니다.\n'
+          'positioning 서비스는 위 브로커에서 angle을 수신하고 position을 발행합니다 — '
+          '외부 브로커로 바꾸면 로케이터 카드들도 같은 브로커로 설정해야 합니다.\n'
           '위치 설정은 [위치 설정] 탭에서, MQTT 수신 확인은 [데이터 수신]·[MQTT 뷰어] 탭에서 합니다.',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
@@ -399,11 +410,152 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
   }
 }
 
+/// 서버 카드의 MQTT 브로커 설정 섹션.
+/// config 서버(:8080)의 /api/mqtt에서 현재 값을 읽어 폼으로 보여주고,
+/// 전송 시 스테이징 저장 → 적용(+aoa-positioning 재시작)까지 수행한다.
+class _ServerMqttSection extends StatefulWidget {
+  final String serverIp;
+
+  const _ServerMqttSection({super.key, required this.serverIp});
+
+  @override
+  State<_ServerMqttSection> createState() => _ServerMqttSectionState();
+}
+
+class _ServerMqttSectionState extends State<_ServerMqttSection> {
+  late final ConfigApiClient _client = ConfigApiClient(widget.serverIp);
+  late Future<ServerMqttSettings> _future = _client.fetchMqtt();
+  bool _busy = false;
+
+  void _reload() => setState(() => _future = _client.fetchMqtt());
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ServerMqttSettings>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.all(8),
+            child: Row(children: [
+              SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+              SizedBox(width: 8),
+              Text('브로커 설정 조회 중...', style: TextStyle(fontSize: 12)),
+            ]),
+          );
+        }
+        if (snap.hasError) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '브로커 설정을 가져오지 못했습니다: ${snap.error}\n'
+                '서버 카드 소프트웨어가 구버전(v2 미만)이면 저장소 배포로 업데이트하세요.',
+                style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+              ),
+              TextButton.icon(
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('다시 시도'),
+              ),
+            ],
+          );
+        }
+
+        final s = snap.data!;
+        final pending = s.stagedHost != s.appliedHost ||
+            s.stagedPort != s.appliedPort;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _MqttSetForm(
+              key: ValueKey('server-mqtt-form-${widget.serverIp}'),
+              initialHost: s.stagedHost,
+              initialPort: s.stagedPort,
+              busy: _busy,
+              hostLabel: '브로커 호스트 (localhost = 이 카드)',
+              submitTip: 'positioning 서비스가 접속할 MQTT 브로커를 설정합니다.\n'
+                  '적용 시 aoa-positioning 서비스가 재시작되며 비밀번호 확인이 뜹니다.',
+              onSubmit: _submit,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '현재 반영: ${s.appliedHost}:${s.appliedPort}'
+              '${pending ? ' · 스테이징 ${s.stagedHost}:${s.stagedPort} 미적용' : ''}'
+              ' — localhost는 이 카드의 mosquitto입니다.',
+              style: TextStyle(
+                fontSize: 12,
+                color: pending ? Colors.orange.shade800 : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _submit(String host, int port) async {
+    final ok = await confirmSettingsPassword(context, '서버 MQTT 브로커 설정 변경');
+    if (!ok || !mounted) return;
+
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('브로커 설정 적용'),
+        content: Text(
+            'positioning 서비스의 MQTT 브로커를 $host:$port(으)로 변경합니다.\n'
+            '적용을 위해 aoa-positioning 서비스가 재시작됩니다(수 초간 위치 계산 중단).\n'
+            '계속할까요?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('적용')),
+        ],
+      ),
+    );
+    if (apply != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await _client.pushMqtt(host, port);
+      final result = await _client.apply(restart: true);
+      if (!mounted) return;
+      if (result.restarted) {
+        _snack('브로커 설정 적용 완료 ($host:$port) — 서비스 재시작됨');
+      } else {
+        _snack('브로커 설정 저장됨 — 서비스 재시작 실패'
+            '${result.restartError.isEmpty ? '' : ': ${result.restartError}'}. '
+            'Pi에서 직접: sudo systemctl restart aoa-positioning');
+      }
+    } on Exception catch (e) {
+      if (mounted) _snack('설정 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+        _reload();
+      }
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+}
+
 /// MQTT 브로커 host/port 입력 폼.
 class _MqttSetForm extends StatefulWidget {
   final String initialHost;
   final int initialPort;
   final bool busy;
+  final String hostLabel;
+  final String submitTip;
   final void Function(String host, int port) onSubmit;
 
   const _MqttSetForm({
@@ -412,6 +564,9 @@ class _MqttSetForm extends StatefulWidget {
     required this.initialPort,
     required this.busy,
     required this.onSubmit,
+    this.hostLabel = '브로커 호스트 (보통 서버 카드 IP)',
+    this.submitTip = '이 카드가 접속할 MQTT 브로커 주소를 UDP로 설정합니다.\n'
+        '전송 후 AOA 서비스 재시작이 필요하며 비밀번호 확인이 뜹니다.',
   });
 
   @override
@@ -439,10 +594,10 @@ class _MqttSetFormState extends State<_MqttSetForm> {
           flex: 3,
           child: TextField(
             controller: _host,
-            decoration: const InputDecoration(
-              labelText: '브로커 호스트 (보통 서버 카드 IP)',
+            decoration: InputDecoration(
+              labelText: widget.hostLabel,
               isDense: true,
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
             ),
           ),
         ),
@@ -460,8 +615,7 @@ class _MqttSetFormState extends State<_MqttSetForm> {
         ),
         const SizedBox(width: 8),
         hoverTip(
-          '이 카드가 접속할 MQTT 브로커 주소를 UDP로 설정합니다.\n'
-          '전송 후 AOA 서비스 재시작이 필요하며 비밀번호 확인이 뜹니다.',
+          widget.submitTip,
           FilledButton(
             onPressed: widget.busy
                 ? null
