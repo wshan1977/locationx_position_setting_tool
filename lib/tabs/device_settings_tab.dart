@@ -230,11 +230,58 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
               ),
             ),
             hoverTip(
-              '서버 카드의 웹 설정 UI(포트 8080)를 브라우저로 엽니다.',
+              '서버 카드의 상태 확인 웹(포트 8080)을 브라우저로 엽니다.\n'
+              '읽기 전용 뷰어 — 설정 변경은 이 도구에서 합니다.',
               OutlinedButton.icon(
                 onPressed: () => _openUrl('http://${d.ip}:8080'),
                 icon: const Icon(Icons.open_in_browser),
-                label: const Text('웹 설정 페이지 열기 (:8080)'),
+                label: const Text('상태 페이지 열기 (:8080)'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text('장치 제어', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            hoverTip(
+              'positioning 서비스(aoa-positioning)를 재시작합니다.\n'
+              '수 초간 angle 수신·position 발행이 중단됩니다.\n'
+              '서버 카드 소프트웨어 v2.1.1 이상 필요.',
+              OutlinedButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () => _doServerService(d, 'aoa-positioning',
+                        'positioning 서비스 재시작'),
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('positioning 재시작'),
+              ),
+            ),
+            hoverTip(
+              'mosquitto(MQTT 브로커)를 재시작합니다.\n'
+              '로케이터·이 도구의 MQTT 연결이 잠시 끊겼다가 자동 복구됩니다.',
+              OutlinedButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () => _doServerService(d, 'mosquitto', 'MQTT 브로커 재시작',
+                        confirmBody:
+                            'mosquitto(MQTT 브로커)를 재시작할까요?\n'
+                            '모든 클라이언트(로케이터·이 도구) 연결이 잠시 끊겼다가 '
+                            '자동 복구됩니다.'),
+                icon: const Icon(Icons.hub_outlined),
+                label: const Text('MQTT 브로커 재시작'),
+              ),
+            ),
+            hoverTip(
+              '서버 카드를 재부팅합니다. 다시 켜질 때까지 1~2분 걸리며\n'
+              '그동안 브로커·위치 계산이 모두 중단됩니다.',
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _doServerReboot(d),
+                icon: const Icon(Icons.power_settings_new),
+                label: const Text('재부팅'),
               ),
             ),
           ],
@@ -379,6 +426,41 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
       } else {
         _snack('재부팅 실패: ${resp['error'] ?? '알 수 없는 오류'}');
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // 서버 카드 제어 — config 서버(:8080) /api/service·/api/reboot 사용
+  // (로케이터와 달리 서버 discover 에이전트는 UDP 제어가 없음).
+  Future<void> _doServerService(DiscoveredDevice d, String name, String label,
+      {String? confirmBody}) async {
+    if (confirmBody != null) {
+      final ok = await _confirm(label, confirmBody);
+      if (ok != true || !mounted) return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ConfigApiClient(d.ip).restartService(name);
+      _snack('$label 완료');
+    } on Exception catch (e) {
+      _snack('$label 실패: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _doServerReboot(DiscoveredDevice d) async {
+    final ok = await _confirm('재부팅',
+        '${d.device} (${d.ip}) 서버 카드를 재부팅할까요?\n'
+        '1~2분 동안 MQTT 브로커·위치 계산이 중단됩니다.');
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ConfigApiClient(d.ip).reboot();
+      _snack('재부팅 명령 전송됨 — 카드가 다시 켜질 때까지 1~2분 걸립니다');
+    } on Exception catch (e) {
+      _snack('재부팅 실패: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -119,6 +119,17 @@ class ConfigApiClient {
     });
   }
 
+  /// POST /api/service — 화이트리스트 서비스 재시작.
+  /// mosquitto는 v2.1.0+, aoa-positioning은 v2.1.1+ (구버전이면 서버가 400 반환).
+  Future<void> restartService(String name) async {
+    await _post('/api/service', {'name': name});
+  }
+
+  /// POST /api/reboot — 서버 카드 재부팅 (응답 후 2초 뒤 재부팅됨).
+  Future<void> reboot() async {
+    await _post('/api/reboot', {});
+  }
+
   /// POST /api/apply — 백업 후 서비스 파일 교체 (+선택적 재시작).
   Future<ApplyResult> apply({bool restart = false}) async {
     final json = await _post('/api/apply', {'restart': restart});
