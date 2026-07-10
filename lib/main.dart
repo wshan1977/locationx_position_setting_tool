@@ -12,11 +12,14 @@ import 'panels/left_settings_panel.dart';
 import 'panels/right_device_panel.dart';
 import 'services/session_storage.dart';
 import 'state/app_state.dart';
+import 'state/external_state.dart';
 import 'state/mqtt_state.dart';
 import 'tabs/data_monitor_tab.dart';
 import 'tabs/device_settings_tab.dart';
+import 'tabs/external_test_tab.dart';
 import 'tabs/mqtt_viewer_tab.dart';
 import 'widgets/hover_tip.dart';
+import 'widgets/tab_guide.dart';
 import 'widgets/toolbar.dart';
 
 Future<void> main() async {
@@ -24,6 +27,7 @@ Future<void> main() async {
 
   final app = AppState();
   final mqtt = MqttState();
+  final ext = ExternalState();
 
   // 끄기 전 상태(도면/배치/서버 IP/MQTT 설정)를 즉시 복원
   final session = await SessionStorage.load();
@@ -36,16 +40,19 @@ Future<void> main() async {
     if (session.mqttConnected && session.mqttHost.isNotEmpty) {
       unawaited(_autoReconnect(app, mqtt, session));
     }
+    // 외부망 탭은 프리필만 하고 자동 연결은 하지 않는다 (공개 브로커)
+    ext.restore(session.extHost, session.extPort, session.extSiteId);
   }
 
   // 이후 변경은 자동으로 세션에 기록
-  final autoSaver = SessionAutoSaver(app, mqtt)..start();
+  final autoSaver = SessionAutoSaver(app, mqtt, ext)..start();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: app),
         ChangeNotifierProvider.value(value: mqtt),
+        ChangeNotifierProvider.value(value: ext),
         ChangeNotifierProvider.value(value: autoSaver),
       ],
       child: const LocationXApp(),
@@ -104,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
@@ -132,13 +139,19 @@ class _HomeScreenState extends State<HomeScreen>
                   child: TabBar(
                     controller: _tabs,
                     onTap: (_) => setState(() {}),
+                    // 현장 작업 순서대로 번호를 붙인다: 장치 준비 → 배치 →
+                    // 수신 점검 → 내부망 확인 → 외부망 확인
                     tabs: const [
-                      Tab(icon: Icon(Icons.tune, size: 18), text: '장치 설정'),
-                      Tab(icon: Icon(Icons.map, size: 18), text: '위치 설정 (서버)'),
+                      Tab(icon: Icon(Icons.tune, size: 18),
+                          text: '① 장치 설정'),
+                      Tab(icon: Icon(Icons.map, size: 18),
+                          text: '② 위치 설정 (서버)'),
                       Tab(icon: Icon(Icons.monitor_heart, size: 18),
-                          text: '데이터 수신'),
+                          text: '③ 데이터 수신'),
                       Tab(icon: Icon(Icons.account_tree, size: 18),
-                          text: 'MQTT 뷰어'),
+                          text: '④ MQTT 뷰어 (내부망)'),
+                      Tab(icon: Icon(Icons.cloud_sync, size: 18),
+                          text: '⑤ 외부망 테스트'),
                     ],
                   ),
                 ),
@@ -163,6 +176,7 @@ class _HomeScreenState extends State<HomeScreen>
                 PositionSettingScreen(),
                 DataMonitorTab(),
                 MqttViewerTab(),
+                ExternalTestTab(),
               ],
             ),
           ),
@@ -252,6 +266,11 @@ class PositionSettingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        const TabGuide(
+          icon: Icons.map,
+          text: '작업 순서: ① 도면 이미지 불러오기 → ② 오른쪽 장치 목록의 로케이터를 '
+              '도면에 드래그해 배치 → ③ 좌표·설치 자세 조정 → ④ 서버로 전송',
+        ),
         const AppToolbar(),
         Expanded(
           child: LayoutBuilder(builder: (context, constraints) {

@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../state/mqtt_state.dart';
 import '../widgets/hover_tip.dart';
 import '../widgets/mqtt_connect_bar.dart';
+import '../widgets/tab_guide.dart';
 import 'position_live_view.dart';
 
 /// 탭 4: MQTT 뷰어 (MQTT Explorer 유사) + 3D 위치인식 확인 서브탭.
@@ -21,12 +23,6 @@ class MqttViewerTab extends StatefulWidget {
 class _MqttViewerTabState extends State<MqttViewerTab>
     with SingleTickerProviderStateMixin {
   late final TabController _subTabs;
-  /// 선택된 토픽 경로 (트리 노드). null이면 전체.
-  String? _selectedPath;
-  final Set<String> _expanded = {};
-
-  final _pubTopic = TextEditingController();
-  final _pubPayload = TextEditingController();
 
   @override
   void initState() {
@@ -40,8 +36,6 @@ class _MqttViewerTabState extends State<MqttViewerTab>
   @override
   void dispose() {
     _subTabs.dispose();
-    _pubTopic.dispose();
-    _pubPayload.dispose();
     super.dispose();
   }
 
@@ -50,6 +44,11 @@ class _MqttViewerTabState extends State<MqttViewerTab>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const TabGuide(
+          icon: Icons.account_tree,
+          text: '내부망(현장 LAN) 확인: 브로커의 모든 토픽·메시지를 탐색하고, '
+              '[3D 위치 확인]에서 계산된 태그 위치를 도면 위에서 실시간으로 봅니다',
+        ),
         const MqttConnectBar(),
         const Divider(height: 1),
         Row(
@@ -72,17 +71,69 @@ class _MqttViewerTabState extends State<MqttViewerTab>
         Expanded(
           child: IndexedStack(
             index: _subTabs.index,
-            children: [
-              _explorerBody(),
-              const PositionLiveView(),
+            children: const [
+              MqttTopicExplorer(),
+              PositionLiveView(),
             ],
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _explorerBody() {
+/// MQTT 토픽 탐색기 (좌: 토픽 트리 · 우: 상세 + 로그 + 발행).
+/// Provider의 [MqttState]를 소비하므로, 외부망 테스트 탭처럼 다른 연결을
+/// 보여줄 때는 중첩 Provider로 해당 MqttState를 주입해 재사용한다.
+class MqttTopicExplorer extends StatefulWidget {
+  const MqttTopicExplorer({super.key});
+
+  @override
+  State<MqttTopicExplorer> createState() => _MqttTopicExplorerState();
+}
+
+class _MqttTopicExplorerState extends State<MqttTopicExplorer> {
+  /// 선택된 토픽 경로 (트리 노드). null이면 전체.
+  String? _selectedPath;
+  final Set<String> _expanded = {};
+
+  final _pubTopic = TextEditingController();
+  final _pubPayload = TextEditingController();
+
+  @override
+  void dispose() {
+    _pubTopic.dispose();
+    _pubPayload.dispose();
+    super.dispose();
+  }
+
+  /// 토픽을 클립보드로 복사한다 — 외부망 뷰어처럼 프리픽스를 벗겨 표시하는
+  /// 연결에서는 실제 브로커 토픽(`locationx/<siteId>/...` 포함)을 복사해
+  /// 다른 MQTT 툴에서 바로 구독/발행에 쓸 수 있게 한다.
+  void _copyTopic(String path) {
+    final full = context.read<MqttState>().topicPrefix + path;
+    Clipboard.setData(ClipboardData(text: full));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('토픽 복사됨: $full'),
+      duration: const Duration(milliseconds: 1500),
+    ));
+  }
+
+  /// 트리 행/상세 카드 공용의 작은 복사 아이콘.
+  Widget _copyIcon(String path, {double size = 13}) => hoverTip(
+        '토픽 복사 (실제 브로커 토픽 기준)',
+        InkWell(
+          borderRadius: BorderRadius.circular(4),
+          onTap: () => _copyTopic(path),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(Icons.copy, size: size, color: Colors.grey.shade500),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
     final mqtt = context.watch<MqttState>();
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -174,7 +225,9 @@ class _MqttViewerTabState extends State<MqttViewerTab>
               node.stat != null ? '${node.stat!.count}' : '${node.totalCount}',
               style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
+            _copyIcon(node.path),
+            const SizedBox(width: 6),
           ],
         ),
       ),
@@ -282,6 +335,8 @@ class _MqttViewerTabState extends State<MqttViewerTab>
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
+                _copyIcon(topic, size: 15),
+                const SizedBox(width: 8),
                 Text(
                   '총 ${stat.count} · ${stat.rateHz(now).toStringAsFixed(1)} msg/s'
                   '${stat.retained ? ' · retained' : ''}',

@@ -16,6 +16,11 @@ class SessionData {
   /// 종료 시점에 MQTT가 연결돼 있었는지 (재시작 시 자동 연결 여부).
   final bool mqttConnected;
 
+  /// 외부망 테스트 탭 연결 정보 (프리필용 · 자동 연결은 하지 않음).
+  final String extHost;
+  final int extPort;
+  final String extSiteId;
+
   SessionData({
     this.version = currentVersion,
     required this.project,
@@ -25,6 +30,9 @@ class SessionData {
     this.mqttPort = 1883,
     this.mqttFilter = 'silabs/#',
     this.mqttConnected = false,
+    this.extHost = '',
+    this.extPort = 1883,
+    this.extSiteId = '',
   });
 
   factory SessionData.fromJson(Map<String, dynamic> json) => SessionData(
@@ -39,6 +47,9 @@ class SessionData {
         mqttPort: (json['mqttPort'] as num?)?.toInt() ?? 1883,
         mqttFilter: json['mqttFilter']?.toString() ?? 'silabs/#',
         mqttConnected: json['mqttConnected'] == true,
+        extHost: json['extHost']?.toString() ?? '',
+        extPort: (json['extPort'] as num?)?.toInt() ?? 1883,
+        extSiteId: json['extSiteId']?.toString() ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -50,5 +61,8 @@ class SessionData {
         'mqttPort': mqttPort,
         'mqttFilter': mqttFilter,
         'mqttConnected': mqttConnected,
+        'extHost': extHost,
+        'extPort': extPort,
+        'extSiteId': extSiteId,
       };
 }

@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/session.dart';
 import '../state/app_state.dart';
+import '../state/external_state.dart';
 import '../state/mqtt_state.dart';
 
 /// 세션(마지막 작업 상태) 자동 저장/복원.
@@ -54,10 +55,11 @@ class SessionStorage {
 /// (첫 변경 후 일정 시간 뒤 그 시점의 최신 상태를 저장).
 /// UI에 자동 저장 시각을 표시할 수 있도록 저장할 때마다 notify한다.
 class SessionAutoSaver extends ChangeNotifier {
-  SessionAutoSaver(this._app, this._mqtt);
+  SessionAutoSaver(this._app, this._mqtt, this._ext);
 
   final AppState _app;
   final MqttState _mqtt;
+  final ExternalState _ext;
   Timer? _pending;
   String _lastSaved = '';
 
@@ -67,6 +69,7 @@ class SessionAutoSaver extends ChangeNotifier {
   void start() {
     _app.addListener(_schedule);
     _mqtt.addListener(_schedule);
+    _ext.addListener(_schedule);
   }
 
   void _schedule() {
@@ -85,6 +88,9 @@ class SessionAutoSaver extends ChangeNotifier {
       mqttPort: _mqtt.port,
       mqttFilter: _mqtt.subscribeFilter,
       mqttConnected: _mqtt.isConnected,
+      extHost: _ext.brokerHost,
+      extPort: _ext.brokerPort,
+      extSiteId: _ext.siteId,
     );
     final encoded = jsonEncode(session.toJson());
     if (encoded == _lastSaved) return;

@@ -69,6 +69,12 @@ class MqttState extends ChangeNotifier {
   String host = '';
   int port = 1883;
 
+  /// 수신 시 토픽 앞에서 떼어내고, 발행 시 앞에 붙이는 프리픽스.
+  /// 외부망 중계 토픽(`locationx/<siteId>/silabs/aoa/...`)을 프리픽스만 벗겨
+  /// 내부망과 같은 토픽 모양으로 만들면 positionByTag() 등 하류 소비자가
+  /// 무수정으로 동작한다. clientId도 구분해 내부 연결과 공존 가능.
+  String topicPrefix = '';
+
   /// 기본 구독 필터. 루트 와일드카드 `#`는 공개 브로커(broker.hivemq.com 등)가
   /// 거부(SUBACK 0x80)하므로 이 시스템의 토픽 루트인 silabs/#를 쓴다 (실측).
   String subscribeFilter = defaultFilter;
@@ -99,11 +105,13 @@ class MqttState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> connect(String newHost, int newPort, {String? filter}) async {
+  Future<void> connect(String newHost, int newPort,
+      {String? filter, String? prefix}) async {
     await disconnect();
 
     host = newHost.trim();
     port = newPort;
+    if (prefix != null) topicPrefix = prefix;
     if (filter != null && filter.trim().isNotEmpty) {
       subscribeFilter = _normalizeFilter(filter.trim());
     }
@@ -118,8 +126,9 @@ class MqttState extends ChangeNotifier {
     lastError = '';
     notifyListeners();
 
-    final clientId =
-        'locationx-tool-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    final clientId = topicPrefix.isEmpty
+        ? 'locationx-tool-${DateTime.now().millisecondsSinceEpoch % 100000}'
+        : 'locationx-ext-${DateTime.now().millisecondsSinceEpoch % 100000}';
     final client = MqttServerClient.withPort(host, clientId, port);
     client.logging(on: false);
     client.keepAlivePeriod = 30;
@@ -222,8 +231,12 @@ class MqttState extends ChangeNotifier {
       } catch (_) {
         payload = '(binary ${pub.payload.message.length} bytes)';
       }
+      var topic = e.topic;
+      if (topicPrefix.isNotEmpty && topic.startsWith(topicPrefix)) {
+        topic = topic.substring(topicPrefix.length);
+      }
       final rec = MqttMessageRecord(
-        topic: e.topic,
+        topic: topic,
         payload: payload,
         ts: now,
         retained: pub.header?.retain ?? false,
@@ -248,11 +261,12 @@ class MqttState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void publish(String topic, String payload) {
+  void publish(String topic, String payload,
+      {MqttQos qos = MqttQos.atMostOnce}) {
     final c = _client;
     if (c == null) return;
     final builder = MqttClientPayloadBuilder()..addString(payload);
-    c.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
+    c.publishMessage(topicPrefix + topic, qos, builder.payload!);
   }
 
   // =========================================================

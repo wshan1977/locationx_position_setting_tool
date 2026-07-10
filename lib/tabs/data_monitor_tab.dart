@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../state/mqtt_state.dart';
 import '../widgets/mqtt_connect_bar.dart';
+import '../widgets/tab_guide.dart';
 
 /// 탭 3: 데이터 수신 확인.
 /// MQTT 브로커에 접속해 silabs/aoa/angle·position 토픽의 수신 현황을
@@ -21,6 +22,12 @@ class DataMonitorTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const TabGuide(
+          icon: Icons.monitor_heart,
+          text: '배치를 마친 뒤 수신 점검: 내부망 브로커에 연결하면 로케이터별 angle · '
+              '태그별 position 수신 상태가 표시됩니다 — 배치했는데 수신이 없는 카드는 '
+              '주황색 경고로 표시됩니다',
+        ),
         const MqttConnectBar(),
         const Divider(height: 1),
         Expanded(

@@ -23,7 +23,11 @@ import '../widgets/hover_tip.dart';
 /// 3D 모드: 회전 가능한 입체 시점 (드래그=회전, 휠=줌).
 /// 2D 모드: 위에서 본 평면도 (드래그=이동, 휠=줌).
 class PositionLiveView extends StatefulWidget {
-  const PositionLiveView({super.key});
+  /// angle 데이터가 있는 연결인지. 외부망 중계는 position만 포워딩하므로
+  /// false — angle 점선 토글·레이 표시를 숨긴다.
+  final bool supportsAngle;
+
+  const PositionLiveView({super.key, this.supportsAngle = true});
 
   @override
   State<PositionLiveView> createState() => _PositionLiveViewState();
@@ -295,7 +299,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final mqtt = context.watch<MqttState>();
-    final rays = _collectRays(mqtt);
+    final rays =
+        widget.supportsAngle ? _collectRays(mqtt) : const <_AngleRay>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -325,16 +330,17 @@ class _PositionLiveViewState extends State<PositionLiveView> {
               ),
               _legendPlate(),
               _legendDot(Colors.red, '태그(+오차원)'),
-              hoverTip(
-                '로케이터가 측정한 태그 방향(azimuth/elevation) 점선을 표시합니다.',
-                FilterChip(
-                  label:
-                      const Text('angle 점선', style: TextStyle(fontSize: 11)),
-                  selected: _showRays,
-                  visualDensity: VisualDensity.compact,
-                  onSelected: (v) => setState(() => _showRays = v),
+              if (widget.supportsAngle)
+                hoverTip(
+                  '로케이터가 측정한 태그 방향(azimuth/elevation) 점선을 표시합니다.',
+                  FilterChip(
+                    label:
+                        const Text('angle 점선', style: TextStyle(fontSize: 11)),
+                    selected: _showRays,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (v) => setState(() => _showRays = v),
+                  ),
                 ),
-              ),
               hoverTip(
                 '천장 설치 로케이터의 바닥 커버리지 원을 표시합니다.',
                 FilterChip(

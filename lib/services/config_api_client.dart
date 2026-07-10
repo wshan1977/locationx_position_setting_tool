@@ -42,6 +42,21 @@ class ServerMqttSettings {
   });
 }
 
+/// 서버 카드의 cloud-agent(외부망 중계) 설정 (config 서버 v2.2.0+).
+/// staged: 스테이징(cloud_agent_setting.json), applied: 반영본(cloud_agent.json).
+/// site_id는 에이전트가 반영본에 생성하므로 applied 쪽에서 읽는다.
+class CloudSettings {
+  final Map<String, dynamic> staged;
+  final Map<String, dynamic> applied;
+  final String agentActive;
+
+  CloudSettings({
+    required this.staged,
+    required this.applied,
+    required this.agentActive,
+  });
+}
+
 /// 서버 카드 config 서버(포트 8080)의 /api/* 클라이언트.
 class ConfigApiClient {
   final String host;
@@ -128,6 +143,31 @@ class ConfigApiClient {
   /// POST /api/reboot — 서버 카드 재부팅 (응답 후 2초 뒤 재부팅됨).
   Future<void> reboot() async {
     await _post('/api/reboot', {});
+  }
+
+  /// GET /api/cloud — cloud-agent 설정 조회 (v2.2.0+).
+  Future<CloudSettings> fetchCloud() async {
+    final json = await _get('/api/cloud');
+    return CloudSettings(
+      staged: json['staged'] is Map
+          ? Map<String, dynamic>.from(json['staged'] as Map)
+          : {},
+      applied: json['applied'] is Map
+          ? Map<String, dynamic>.from(json['applied'] as Map)
+          : {},
+      agentActive: json['agent_active']?.toString() ?? '',
+    );
+  }
+
+  /// POST /api/cloud — cloud-agent 설정 스테이징 저장 (부분 갱신 가능).
+  Future<void> pushCloud(Map<String, dynamic> settings) async {
+    await _post('/api/cloud', settings);
+  }
+
+  /// POST /api/cloud/apply — 스테이징 → 반영본 확정.
+  /// 에이전트가 mtime 감지로 자동 재접속하므로 restart는 보통 불필요.
+  Future<void> applyCloud({bool restart = false}) async {
+    await _post('/api/cloud/apply', {'restart': restart});
   }
 
   /// POST /api/apply — 백업 후 서비스 파일 교체 (+선택적 재시작).
