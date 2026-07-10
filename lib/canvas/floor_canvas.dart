@@ -2,8 +2,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'dart:math' as math;
+
 import '../models/discovered_device.dart';
 import '../models/placement.dart';
+import '../services/locator_images.dart';
 import '../state/app_state.dart';
 import 'grid_painter.dart';
 import 'locator_marker.dart';
@@ -89,6 +92,15 @@ class FloorCanvas extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // 실물 사진 레이어 (마커 아래 · 월드 스케일 · 회전 반영)
+                      if (app.showLocatorPhoto && LocatorImages.loaded)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _LocatorPhotoPainter(app: app),
+                            ),
+                          ),
+                        ),
                       // 로케이터 마커
                       for (final p in app.placements)
                         _positionedMarker(context, app, p),
@@ -231,4 +243,54 @@ class FloorCanvas extends StatelessWidget {
       app.applyCalibration(result);
     }
   }
+}
+
+/// Top 뷰의 실물 사진 레이어 — 배치된 로케이터 자리에 사진을
+/// 월드 스케일(0.5m)·설치 회전 반영으로 그린다 (마커 아래 · 입력 무시).
+/// 천장 설치(아래를 봄) = 뒷면(back) · 바닥 설치(위를 봄) = 앞면(front).
+class _LocatorPhotoPainter extends CustomPainter {
+  final AppState app;
+
+  _LocatorPhotoPainter({required this.app});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = app.transform;
+    for (final p in app.placements) {
+      final rot = _euler(p.orientation.x, p.orientation.y, p.orientation.z);
+      // 법선 z (R * (0,0,1)) — 아래를 보면 back, 위를 보면 front
+      final nz = rot[8];
+      final img = nz < 0 ? LocatorImages.back : LocatorImages.front;
+      if (img == null) continue;
+
+      final center =
+          t.worldToScreen(Offset(p.coordinate.x, p.coordinate.y));
+      // 보드 +x (R * (1,0,0))의 화면 방향각
+      final xw = Offset(rot[0], rot[3]);
+      final tip = t.worldToScreen(
+          Offset(p.coordinate.x + xw.dx, p.coordinate.y + xw.dy));
+      final ang = math.atan2(tip.dy - center.dy, tip.dx - center.dx);
+
+      final sizePx = 0.5 / t.metersPerPixel * t.zoom;
+      LocatorImages.drawRotated(canvas, img, center, sizePx, ang);
+    }
+  }
+
+  /// Rz·Ry·Rx (도) — placement_3d_view의 _rotEulerDeg와 동일 규약.
+  static List<double> _euler(double xDeg, double yDeg, double zDeg) {
+    final a = xDeg * math.pi / 180;
+    final b = yDeg * math.pi / 180;
+    final c = zDeg * math.pi / 180;
+    final ca = math.cos(a), sa = math.sin(a);
+    final cb = math.cos(b), sb = math.sin(b);
+    final cc = math.cos(c), sc = math.sin(c);
+    return [
+      cc * cb, cc * sb * sa - sc * ca, cc * sb * ca + sc * sa, //
+      sc * cb, sc * sb * sa + cc * ca, sc * sb * ca - cc * sa, //
+      -sb, cb * sa, cb * ca,
+    ];
+  }
+
+  @override
+  bool shouldRepaint(covariant _LocatorPhotoPainter old) => true;
 }

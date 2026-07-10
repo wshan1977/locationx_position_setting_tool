@@ -1411,18 +1411,7 @@ class _Live2dPainter extends CustomPainter {
           Offset(p.coordinate.x + xw.x, p.coordinate.y + xw.y));
       final ang = math.atan2(sx.dy - center.dy, sx.dx - center.dx);
       final sizePx = (corner(h, 0) - corner(-h, 0)).distance;
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(ang +
-          math.pi / 2 +
-          LocatorImages.imageRotOffsetDeg * math.pi / 180);
-      canvas.drawImageRect(
-        img,
-        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-        Rect.fromCenter(center: Offset.zero, width: sizePx, height: sizePx),
-        Paint()..filterQuality = FilterQuality.medium,
-      );
-      canvas.restore();
+      LocatorImages.drawRotated(canvas, img, center, sizePx, ang);
       // 수신 상태는 테두리로 유지
       canvas.drawPath(
           plate,

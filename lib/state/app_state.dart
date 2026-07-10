@@ -42,6 +42,15 @@ class AppState extends ChangeNotifier {
   Offset? calibP2;
   double? calibDistanceM;
 
+  /// 위치 설정 캔버스에서 로케이터를 실물 이미지(Top=사진 · 3D=케이스 메시)로
+  /// 표시할지 (토글은 캔버스 우상단).
+  bool showLocatorPhoto = true;
+
+  void setShowLocatorPhoto(bool v) {
+    showLocatorPhoto = v;
+    notifyListeners();
+  }
+
   // ---- 배치 ----
   final List<PlacedLocator> placements = [];
   String? selectedLocatorId;

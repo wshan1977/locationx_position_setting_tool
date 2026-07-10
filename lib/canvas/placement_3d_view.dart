@@ -380,7 +380,7 @@ class _Placement3dPainter extends CustomPainter {
     // 노치·화살표·라벨은 케이스 위에도 그려 설치 회전 확인 기준을 유지한다.
     const h = 0.25;
     final body = selected ? Colors.deepOrange : Colors.blue;
-    final mesh = CaseMesh.instance;
+    final mesh = app.showLocatorPhoto ? CaseMesh.instance : null;
     if (mesh != null) {
       drawCaseMesh(canvas, mesh,
           rot: rot,

@@ -294,24 +294,46 @@ class _CanvasAreaState extends State<_CanvasArea> {
               Positioned(
                 top: 8,
                 right: 8,
-                child: hoverTip(
-                  'Top: 위에서 본 도면에서 배치 편집 (드래그로 이동)\n'
-                  '3D: 설치 자세(orientation)를 입체로 확인',
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('Top')),
-                      ButtonSegment(value: true, label: Text('3D')),
-                    ],
-                    selected: {_is3d},
-                    onSelectionChanged: (s) => setState(() => _is3d = s.first),
-                    style: ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor: WidgetStatePropertyAll(
-                          Colors.white.withValues(alpha: 0.85)),
-                      textStyle: const WidgetStatePropertyAll(
-                          TextStyle(fontSize: 11.5)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    hoverTip(
+                      '로케이터를 실물 이미지로 표시합니다.\n'
+                      'Top 뷰 = 실물 사진 (천장 설치는 뒷면 · 바닥 설치는 앞면)\n'
+                      '3D 뷰 = 실물 케이스 형상',
+                      FilterChip(
+                        label: const Text('실물 이미지',
+                            style: TextStyle(fontSize: 11)),
+                        selected: context.watch<AppState>().showLocatorPhoto,
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor:
+                            Colors.white.withValues(alpha: 0.85),
+                        onSelected: (v) =>
+                            context.read<AppState>().setShowLocatorPhoto(v),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    hoverTip(
+                      'Top: 위에서 본 도면에서 배치 편집 (드래그로 이동)\n'
+                      '3D: 설치 자세(orientation)를 입체로 확인',
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: false, label: Text('Top')),
+                          ButtonSegment(value: true, label: Text('3D')),
+                        ],
+                        selected: {_is3d},
+                        onSelectionChanged: (s) =>
+                            setState(() => _is3d = s.first),
+                        style: ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: WidgetStatePropertyAll(
+                              Colors.white.withValues(alpha: 0.85)),
+                          textStyle: const WidgetStatePropertyAll(
+                              TextStyle(fontSize: 11.5)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
