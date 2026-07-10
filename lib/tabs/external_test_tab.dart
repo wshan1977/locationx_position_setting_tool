@@ -403,6 +403,9 @@ class _DeviceCardState extends State<_DeviceCard> {
                     children: [
                       _info('IP', d.ip.isEmpty ? '-' : d.ip),
                       _info('버전', d.ver.isEmpty ? '-' : d.ver),
+                      if (d.uptimeText != null)
+                        _info('가동시간',
+                            '${d.uptimeText} (부팅 ${d.bootTimeText ?? "?"})'),
                       if (d.locatorId != null && d.locatorId!.isNotEmpty)
                         _info('로케이터 ID', d.locatorId!),
                       if (d.uartRxRateBps != null)

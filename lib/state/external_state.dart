@@ -20,6 +20,11 @@ class ExternalDevice {
   final bool? mqttConnected;
   final double? uartRxRateBps;
   final String? locatorId;
+
+  /// 부팅 후 경과(초) · 부팅 시각(epoch sec) — 카드가 얼마나 켜져 있었는지.
+  final int? uptimeSec;
+  final int? bootTs;
+
   final int ts; // 에이전트 발행 시각 (epoch sec)
   final DateTime lastRx; // 도구 수신 시각
 
@@ -35,11 +40,36 @@ class ExternalDevice {
     required this.mqttConnected,
     required this.uartRxRateBps,
     required this.locatorId,
+    required this.uptimeSec,
+    required this.bootTs,
     required this.ts,
     required this.lastRx,
   });
 
   bool get isServer => type == 'server';
+
+  /// "3일 4시간" 형태의 가동시간 문자열. 수신 후 경과분을 더해 보정한다
+  /// (상태는 주기 발행이라 uptimeSec 자체는 발행 시점 값).
+  String? get uptimeText {
+    var sec = uptimeSec;
+    if (sec == null) return null;
+    sec += DateTime.now().difference(lastRx).inSeconds;
+    final d = sec ~/ 86400;
+    final h = (sec % 86400) ~/ 3600;
+    final m = (sec % 3600) ~/ 60;
+    if (d > 0) return '$d일 $h시간';
+    if (h > 0) return '$h시간 $m분';
+    return '$m분';
+  }
+
+  /// 부팅 시각 "07-10 09:12" 형태.
+  String? get bootTimeText {
+    final t = bootTs;
+    if (t == null) return null;
+    final dt = DateTime.fromMillisecondsSinceEpoch(t * 1000);
+    String p(int v) => v.toString().padLeft(2, '0');
+    return '${p(dt.month)}-${p(dt.day)} ${p(dt.hour)}:${p(dt.minute)}';
+  }
 
   static ExternalDevice? fromPayload(String deviceId, String payload) {
     final dynamic j;
@@ -69,6 +99,8 @@ class ExternalDevice {
           j.containsKey('mqtt_connected') ? j['mqtt_connected'] == true : null,
       uartRxRateBps: (j['uart_rx_rate_bps'] as num?)?.toDouble(),
       locatorId: j['locator_id']?.toString(),
+      uptimeSec: (j['uptime_sec'] as num?)?.toInt(),
+      bootTs: (j['boot_ts'] as num?)?.toInt(),
       ts: (j['ts'] as num?)?.toInt() ?? 0,
       lastRx: DateTime.now(),
     );
