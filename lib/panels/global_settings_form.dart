@@ -29,10 +29,10 @@ class GlobalSettingsForm extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        const Row(children: [
-          Icon(Icons.tune, color: Colors.teal),
-          SizedBox(width: 8),
-          Expanded(
+        Row(children: [
+          Icon(Icons.tune, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          const Expanded(
             child: Text('전역 Positioning 설정',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),

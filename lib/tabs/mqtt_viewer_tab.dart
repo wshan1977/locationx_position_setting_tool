@@ -204,7 +204,9 @@ class _MqttTopicExplorerState extends State<MqttTopicExplorer> {
         }
       }),
       child: Container(
-        color: selected ? Colors.teal.withValues(alpha: 0.12) : null,
+        color: selected
+            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.10)
+            : null,
         padding: EdgeInsets.only(left: 8.0 + depth * 16, top: 4, bottom: 4),
         child: Row(
           children: [
@@ -287,10 +289,10 @@ class _MqttTopicExplorerState extends State<MqttTopicExplorer> {
                     SizedBox(
                       width: 260,
                       child: Text(m.topic,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
                               fontFamily: 'monospace',
-                              color: Colors.teal),
+                              color: Theme.of(context).colorScheme.primary),
                           overflow: TextOverflow.ellipsis),
                     ),
                     const SizedBox(width: 8),

@@ -84,12 +84,70 @@ class LocationXApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 아이폰(iOS) 스타일: 시스템 블루 액센트 · 연회색 그룹 배경 위 흰 카드 ·
+    // 큰 라운드 코너 · 플랫(무그림자) · iOS 스크롤 물리(platform: iOS)
+    const iosBlue = Color(0xFF007AFF);
     return MaterialApp(
       title: 'LocationX Manager',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
+        platform: TargetPlatform.iOS,
+        colorScheme:
+            ColorScheme.fromSeed(seedColor: iosBlue).copyWith(primary: iosBlue),
+        scaffoldBackgroundColor: const Color(0xFFF2F2F7),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
+          ),
+        ),
+        dividerTheme: DividerThemeData(color: Colors.grey.shade300),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: iosBlue,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: iosBlue,
+            side: BorderSide(color: Colors.grey.shade400),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: iosBlue),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade400),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade400),
+          ),
+        ),
+        dialogTheme: DialogThemeData(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        tabBarTheme: const TabBarThemeData(
+          labelColor: iosBlue,
+          indicatorColor: iosBlue,
+        ),
       ),
       home: const HomeScreen(),
     );

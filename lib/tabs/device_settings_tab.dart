@@ -138,7 +138,9 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
     final isSelected = d.dedupeKey == _selectedKey;
     final isTargetServer = d.isServer && app.serverIp == d.ip;
     return Card(
-      color: isSelected ? Colors.teal.shade50 : null,
+      color: isSelected
+          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+          : null,
       child: ListTile(
         dense: true,
         selected: isSelected,
@@ -274,7 +276,8 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           children: [
             Row(
               children: [
-                Icon(icon, size: 17, color: Colors.teal),
+                Icon(icon, size: 17,
+                    color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(

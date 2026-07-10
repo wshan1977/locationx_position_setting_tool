@@ -136,10 +136,12 @@ class AppToolbar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.cloud_done_outlined,
-                size: 15, color: Colors.teal.shade600),
+                size: 15, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 4),
             Text(text,
-                style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.primary)),
           ],
         ),
       ),

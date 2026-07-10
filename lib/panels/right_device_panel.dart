@@ -103,10 +103,12 @@ class _ServerTile extends StatelessWidget {
     final app = context.watch<AppState>();
     final isTarget = app.serverIp == device.ip;
     return Card(
-      color: isTarget ? Colors.teal.shade50 : null,
+      color: isTarget
+          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+          : null,
       child: ListTile(
         dense: true,
-        leading: const Icon(Icons.dns, color: Colors.teal),
+        leading: Icon(Icons.dns, color: Theme.of(context).colorScheme.primary),
         title: Text(device.device,
             style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text('${device.ip}\nver ${device.ver}'),

@@ -374,7 +374,10 @@ class _DeviceCardState extends State<_DeviceCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(d.isServer ? Icons.dns : Icons.settings_input_antenna,
-                size: 30, color: d.online ? Colors.teal : Colors.grey),
+                size: 30,
+                color: d.online
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
