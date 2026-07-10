@@ -6,8 +6,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../canvas/case_mesh_renderer.dart';
 import '../canvas/world_transform.dart';
 import '../models/placement.dart';
+import '../services/case_mesh.dart';
+import '../services/locator_images.dart';
 import '../state/app_state.dart';
 import '../state/mqtt_state.dart';
 import '../widgets/hover_tip.dart';
@@ -151,6 +154,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   bool _showRays = true;
   bool _showFloor = true;
   bool _showTrail = true;
+  bool _showCase = true;
 
   // ---- 2D 뷰 상태 ----
   double? _zoom;
@@ -350,6 +354,18 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                   onSelected: (v) => setState(() => _showCoverage = v),
                 ),
               ),
+              if (_is3d && CaseMesh.instance != null)
+                hoverTip(
+                  '로케이터를 실물 케이스(LocatorXCase) 3D 형상으로 표시합니다.\n'
+                  '끄면 기존 보드 사각형으로 표시합니다.',
+                  FilterChip(
+                    label:
+                        const Text('실물 케이스', style: TextStyle(fontSize: 11)),
+                    selected: _showCase,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (v) => setState(() => _showCase = v),
+                  ),
+                ),
               hoverTip(
                 '바닥에 도면 이미지를 표시합니다.',
                 FilterChip(
@@ -510,6 +526,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
               showRays: _showRays,
               showFloor: _showFloor,
               showTrail: _showTrail,
+              showCase: _showCase,
             ),
           ),
         ),
@@ -775,6 +792,7 @@ class _Live3dPainter extends CustomPainter {
   final bool showRays;
   final bool showFloor;
   final bool showTrail;
+  final bool showCase;
 
   _Live3dPainter({
     required this.app,
@@ -789,6 +807,7 @@ class _Live3dPainter extends CustomPainter {
     required this.showRays,
     required this.showFloor,
     required this.showTrail,
+    this.showCase = true,
   });
 
   late Matrix4 _m;
@@ -810,7 +829,7 @@ class _Live3dPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.grey.shade100);
+    canvas.drawRect(Offset.zero & size, Paint()..color = canvasBackground);
 
     final bounds = _bounds();
     final cx = bounds.center.dx;
@@ -972,27 +991,41 @@ class _Live3dPainter extends CustomPainter {
     canvas.drawCircle(
         foot, 2.5, Paint()..color = Colors.blueGrey.withValues(alpha: 0.5));
 
-    // 보드 판 (0.5m 사각)
+    // 실물 케이스(로드됨 + 토글 on)면 케이스 메시, 아니면 보드 판 (0.5m 사각).
+    // 노치·라벨은 케이스 위에도 그려 설치 회전 확인 기준을 유지한다.
     const h = 0.25;
-    final c1 = world(-h, -h, 0);
-    final c2 = world(h, -h, 0);
-    final c3 = world(h, h, 0);
-    final c4 = world(-h, h, 0);
-    final plate = Path()
-      ..moveTo(c1.dx, c1.dy)
-      ..lineTo(c2.dx, c2.dy)
-      ..lineTo(c3.dx, c3.dy)
-      ..lineTo(c4.dx, c4.dy)
-      ..close();
     final bodyColor = receiving ? Colors.blue : Colors.blueGrey;
-    canvas.drawPath(
-        plate, Paint()..color = bodyColor.withValues(alpha: 0.35));
-    canvas.drawPath(
-        plate,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = bodyColor);
+    final mesh = CaseMesh.instance;
+    if (showCase && mesh != null) {
+      drawCaseMesh(canvas, mesh,
+          rot: rot.m,
+          cx: cx,
+          cy: cy,
+          cz: cz,
+          cam: _m.storage,
+          color: receiving
+              ? const Color(0xFF90B8E0) // 수신 중 = 푸른 톤
+              : const Color(0xFFAEB6BE));
+    } else {
+      final c1 = world(-h, -h, 0);
+      final c2 = world(h, -h, 0);
+      final c3 = world(h, h, 0);
+      final c4 = world(-h, h, 0);
+      final plate = Path()
+        ..moveTo(c1.dx, c1.dy)
+        ..lineTo(c2.dx, c2.dy)
+        ..lineTo(c3.dx, c3.dy)
+        ..lineTo(c4.dx, c4.dy)
+        ..close();
+      canvas.drawPath(
+          plate, Paint()..color = bodyColor.withValues(alpha: 0.35));
+      canvas.drawPath(
+          plate,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = bodyColor);
+    }
 
     // 기준축 노치: +x(빨강, 0°) / +y(초록, 90°) — 설치 회전 방향 확인용
     final notchA = world(h, 0, 0);
@@ -1229,7 +1262,7 @@ class _Live2dPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.grey.shade100);
+    canvas.drawRect(Offset.zero & size, Paint()..color = canvasBackground);
 
     final img = showFloor ? app.floorImage : null;
     if (img != null) {
@@ -1366,13 +1399,47 @@ class _Live2dPainter extends CustomPainter {
       ..lineTo(c3.dx, c3.dy)
       ..lineTo(c4.dx, c4.dy)
       ..close();
-    canvas.drawPath(plate, Paint()..color = bodyColor.withValues(alpha: 0.35));
-    canvas.drawPath(
-        plate,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = bodyColor);
+
+    // 실물 사진이 로드돼 있으면 사진으로: 천장 설치(아래를 봄)는 위에서
+    // 등(back)이 보이고, 바닥 설치(위를 봄)는 앞면(front)이 보인다.
+    final nrm = rot.apply(0, 0, 1);
+    final img = nrm.z < 0 ? LocatorImages.back : LocatorImages.front;
+    if (img != null) {
+      // 보드 +x(커넥터 · 0°)의 화면 방향각 — 이미지 위쪽 = 커넥터 가정
+      final xw = rot.apply(1, 0, 0);
+      final sx = view.worldToScreen(
+          Offset(p.coordinate.x + xw.x, p.coordinate.y + xw.y));
+      final ang = math.atan2(sx.dy - center.dy, sx.dx - center.dx);
+      final sizePx = (corner(h, 0) - corner(-h, 0)).distance;
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(ang +
+          math.pi / 2 +
+          LocatorImages.imageRotOffsetDeg * math.pi / 180);
+      canvas.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+        Rect.fromCenter(center: Offset.zero, width: sizePx, height: sizePx),
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      canvas.restore();
+      // 수신 상태는 테두리로 유지
+      canvas.drawPath(
+          plate,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = bodyColor.withValues(alpha: 0.8));
+    } else {
+      canvas.drawPath(
+          plate, Paint()..color = bodyColor.withValues(alpha: 0.35));
+      canvas.drawPath(
+          plate,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = bodyColor);
+    }
 
     // 기준축 노치: +x(빨강, 0°) / +y(초록, 90°)
     final notchX = corner(h * 1.9, 0);

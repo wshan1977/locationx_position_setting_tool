@@ -8,6 +8,7 @@ import '../services/config_api_client.dart';
 import '../services/udp_control_service.dart';
 import '../widgets/cloud_config_form.dart';
 import '../widgets/hover_tip.dart';
+import '../widgets/locator_avatar.dart';
 import '../widgets/password_gate.dart';
 import '../widgets/tab_guide.dart';
 import '../state/app_state.dart';
@@ -144,13 +145,13 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
       child: ListTile(
         dense: true,
         selected: isSelected,
-        leading: Icon(
-          d.isServer ? Icons.dns : Icons.settings_input_antenna,
-          color:
-              d.isServer
-                  ? Colors.teal
-                  : (d.hasValidMac ? Colors.blue : Colors.red),
-        ),
+        // 로케이터는 실물 프론트 사진으로 (MAC 오류 카드는 빨간 아이콘 유지)
+        leading: d.isServer
+            ? const Icon(Icons.dns, color: Colors.teal)
+            : (d.hasValidMac
+                ? const LocatorAvatar(size: 36)
+                : const Icon(Icons.settings_input_antenna,
+                    color: Colors.red)),
         title: Text(
           d.device,
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -182,11 +183,10 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           children: [
             Row(
               children: [
-                Icon(
-                  d.isServer ? Icons.dns : Icons.settings_input_antenna,
-                  color: d.isServer ? Colors.teal : Colors.blue,
-                  size: 28,
-                ),
+                if (d.isServer)
+                  const Icon(Icons.dns, color: Colors.teal, size: 28)
+                else
+                  const LocatorAvatar(size: 34),
                 const SizedBox(width: 10),
                 Text(
                   d.device,

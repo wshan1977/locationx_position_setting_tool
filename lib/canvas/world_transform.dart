@@ -1,5 +1,9 @@
 import 'dart:ui';
 
+/// 2D/3D 캔버스 공통 배경색 — 앱 테마의 iOS 그룹 배경(#F2F2F7)과 동일하게
+/// 맞춰 화면 전체 색감을 통일한다 (main.dart scaffoldBackgroundColor와 쌍).
+const canvasBackground = Color(0xFFF2F2F7);
+
 /// 3개 좌표계 간 순수 변환.
 /// - world: 미터 단위, y-up. positioning_config.json에 저장되는 값.
 /// - image px: 도면 이미지 픽셀, y-down.

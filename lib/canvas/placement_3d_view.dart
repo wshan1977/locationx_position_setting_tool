@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/placement.dart';
+import '../services/case_mesh.dart';
 import '../state/app_state.dart';
+import 'case_mesh_renderer.dart';
+import 'world_transform.dart' show canvasBackground;
 
 /// 위치 설정 탭의 3D 편집 뷰.
 ///
@@ -270,7 +273,7 @@ class _Placement3dPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.grey.shade100);
+    canvas.drawRect(Offset.zero & size, Paint()..color = canvasBackground);
 
     final b = _Cam.sceneBounds(app);
     _drawFloor(canvas);
@@ -373,26 +376,40 @@ class _Placement3dPainter extends CustomPainter {
     canvas.drawCircle(
         foot, 2.5, Paint()..color = Colors.blueGrey.withValues(alpha: 0.5));
 
-    // 보드 판
+    // 실물 케이스 메시가 로드돼 있으면 케이스를, 아니면 추상 보드 판을 그린다.
+    // 노치·화살표·라벨은 케이스 위에도 그려 설치 회전 확인 기준을 유지한다.
     const h = 0.25;
-    final c1 = world(-h, -h, 0);
-    final c2 = world(h, -h, 0);
-    final c3 = world(h, h, 0);
-    final c4 = world(-h, h, 0);
-    final plate = Path()
-      ..moveTo(c1.dx, c1.dy)
-      ..lineTo(c2.dx, c2.dy)
-      ..lineTo(c3.dx, c3.dy)
-      ..lineTo(c4.dx, c4.dy)
-      ..close();
     final body = selected ? Colors.deepOrange : Colors.blue;
-    canvas.drawPath(plate, Paint()..color = body.withValues(alpha: 0.35));
-    canvas.drawPath(
-        plate,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = selected ? 2.6 : 1.6
-          ..color = body);
+    final mesh = CaseMesh.instance;
+    if (mesh != null) {
+      drawCaseMesh(canvas, mesh,
+          rot: rot,
+          cx: cx,
+          cy: cy,
+          cz: cz,
+          cam: cam.m.storage,
+          color: selected
+              ? Colors.deepOrange.shade300
+              : const Color(0xFFB9C3CD));
+    } else {
+      final c1 = world(-h, -h, 0);
+      final c2 = world(h, -h, 0);
+      final c3 = world(h, h, 0);
+      final c4 = world(-h, h, 0);
+      final plate = Path()
+        ..moveTo(c1.dx, c1.dy)
+        ..lineTo(c2.dx, c2.dy)
+        ..lineTo(c3.dx, c3.dy)
+        ..lineTo(c4.dx, c4.dy)
+        ..close();
+      canvas.drawPath(plate, Paint()..color = body.withValues(alpha: 0.35));
+      canvas.drawPath(
+          plate,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = selected ? 2.6 : 1.6
+            ..color = body);
+    }
 
     // x(0°)/y(90°) 노치
     canvas.drawLine(

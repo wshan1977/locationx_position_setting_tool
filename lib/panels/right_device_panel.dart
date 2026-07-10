@@ -5,6 +5,7 @@ import '../models/discovered_device.dart';
 import '../models/placement.dart';
 import '../state/app_state.dart';
 import '../widgets/hover_tip.dart';
+import '../widgets/locator_avatar.dart';
 
 /// 장치 검색 패널 (위치 설정 탭 왼쪽): 스캔 버튼 + 발견된 디바이스 목록.
 /// 로케이터 카드는 캔버스로 드래그할 수 있다.
@@ -179,12 +180,10 @@ class _LocatorTile extends StatelessWidget {
       color: placed ? Colors.grey.shade200 : null,
       child: ListTile(
         dense: true,
-        leading: Icon(
-          Icons.settings_input_antenna,
-          color: placed
-              ? Colors.grey
-              : (device.hasValidMac ? Colors.blue : Colors.red),
-        ),
+        // 실물 프론트 사진 (배치됨 = 흐리게 · MAC 오류 = 빨간 아이콘)
+        leading: device.hasValidMac
+            ? LocatorAvatar(size: 36, dimmed: placed)
+            : const Icon(Icons.settings_input_antenna, color: Colors.red),
         title: Text(device.device),
         subtitle: Text(
           device.hasValidMac

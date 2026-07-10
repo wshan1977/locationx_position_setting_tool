@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.0+9
+version: 1.9.0+10
 
 environment:
   sdk: ^3.7.0
@@ -62,6 +62,14 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    # 로케이터 실물 케이스 3D 메시 (image/LocatorXCase.stl 240만 삼각형을
+    # 외형 셸 분리 + 쿼드릭 간소화로 2.5만 삼각형까지 경량화 · binary STL)
+    - assets/models/locator_case.stl
+    # 로케이터 실물 사진 (2D 뷰 오버레이 · 배경 투명화 처리)
+    - assets/images/locator_front.png
+    - assets/images/locator_back.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

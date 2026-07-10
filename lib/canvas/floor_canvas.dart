@@ -7,6 +7,7 @@ import '../models/placement.dart';
 import '../state/app_state.dart';
 import 'grid_painter.dart';
 import 'locator_marker.dart';
+import 'world_transform.dart' show canvasBackground;
 
 /// 중앙 캔버스: 도면 + 그리드 + 마커. 휠 줌 / 빈 공간 드래그 팬 /
 /// 오른쪽 리스트에서 드롭 / 보정·원점 클릭 모드.
@@ -73,7 +74,7 @@ class FloorCanvas extends StatelessWidget {
                 child: Container(
                   color: candidates.isNotEmpty
                       ? Colors.blue.withValues(alpha: 0.06)
-                      : const Color(0xFFF4F6F8),
+                      : canvasBackground,
                   child: Stack(
                     clipBehavior: Clip.hardEdge,
                     children: [

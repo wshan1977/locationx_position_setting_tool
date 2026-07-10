@@ -6,6 +6,7 @@ import '../state/external_state.dart';
 import '../state/mqtt_state.dart';
 import '../widgets/cloud_config_form.dart';
 import '../widgets/hover_tip.dart';
+import '../widgets/locator_avatar.dart';
 import '../widgets/tab_guide.dart';
 import 'mqtt_viewer_tab.dart' show MqttTopicExplorer;
 import 'position_live_view.dart';
@@ -373,11 +374,14 @@ class _DeviceCardState extends State<_DeviceCard> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(d.isServer ? Icons.dns : Icons.settings_input_antenna,
-                size: 30,
-                color: d.online
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.grey),
+            if (d.isServer)
+              Icon(Icons.dns,
+                  size: 30,
+                  color: d.online
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey)
+            else
+              LocatorAvatar(size: 36, dimmed: !d.online),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

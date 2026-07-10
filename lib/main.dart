@@ -10,6 +10,8 @@ import 'canvas/placement_3d_view.dart';
 import 'models/session.dart';
 import 'panels/left_settings_panel.dart';
 import 'panels/right_device_panel.dart';
+import 'services/case_mesh.dart';
+import 'services/locator_images.dart';
 import 'services/session_storage.dart';
 import 'state/app_state.dart';
 import 'state/external_state.dart';
@@ -28,6 +30,10 @@ Future<void> main() async {
   final app = AppState();
   final mqtt = MqttState();
   final ext = ExternalState();
+
+  // 로케이터 실물 케이스 3D 메시·실물 사진 — 로드 후 다음 리페인트부터 표시
+  unawaited(CaseMesh.ensureLoaded());
+  unawaited(LocatorImages.ensureLoaded());
 
   // 끄기 전 상태(도면/배치/서버 IP/MQTT 설정)를 즉시 복원
   final session = await SessionStorage.load();
