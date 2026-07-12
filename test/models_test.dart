@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:locationx_positon_seting_tool/canvas/world_transform.dart';
-import 'package:locationx_positon_seting_tool/models/discovered_device.dart';
-import 'package:locationx_positon_seting_tool/models/positioning_config.dart';
+import 'package:locationx_position_setting_tool/canvas/world_transform.dart';
+import 'package:locationx_position_setting_tool/models/discovered_device.dart';
+import 'package:locationx_position_setting_tool/models/positioning_config.dart';
 
 void main() {
   group('DiscoveredDevice', () {

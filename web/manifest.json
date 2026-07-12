@@ -1,11 +1,11 @@
 {
-    "name": "locationx_positon_seting_tool",
-    "short_name": "locationx_positon_seting_tool",
+    "name": "locationx_position_setting_tool",
+    "short_name": "locationx_position_setting_tool",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "LocationX_positon_seting_tool",
+    "description": "LocationX_position_setting_tool",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

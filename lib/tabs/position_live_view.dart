@@ -30,7 +30,12 @@ class PositionLiveView extends StatefulWidget {
   /// false — angle 점선 토글·레이 표시를 숨긴다.
   final bool supportsAngle;
 
-  const PositionLiveView({super.key, this.supportsAngle = true});
+  /// 로케이터 배치 소스 재정의. null이면 AppState.placements(로컬 프로젝트)를
+  /// 쓴다. 외부망 탭은 서버 카드가 중계한 배치(placements 토픽)를 넘겨,
+  /// 내부망에 접속한 적 없는 PC에서도 로케이터가 보이게 한다.
+  final List<PlacedLocator>? placements;
+
+  const PositionLiveView({super.key, this.supportsAngle = true, this.placements});
 
   @override
   State<PositionLiveView> createState() => _PositionLiveViewState();
@@ -299,9 +304,15 @@ class _PositionLiveViewState extends State<PositionLiveView> {
     return rays;
   }
 
+  /// 그릴 로케이터 배치 — 재정의(외부망 중계)가 있으면 그것을, 없으면
+  /// 로컬 프로젝트(AppState) 배치를 쓴다.
+  List<PlacedLocator> _placements(AppState app) =>
+      widget.placements ?? app.placements;
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final placements = _placements(app);
     final mqtt = context.watch<MqttState>();
     final rays =
         widget.supportsAngle ? _collectRays(mqtt) : const <_AngleRay>[];
@@ -453,12 +464,16 @@ class _PositionLiveViewState extends State<PositionLiveView> {
             ),
           ),
         Expanded(
-          child: app.placements.isEmpty && _tracks.isEmpty
+          child: placements.isEmpty && _tracks.isEmpty
               ? Center(
                   child: Text(
-                    '표시할 데이터가 없습니다.\n'
-                    '[위치 설정] 탭에서 도면과 로케이터를 배치하고,\n'
-                    '상단에서 MQTT 브로커에 연결하세요.',
+                    widget.placements != null
+                        ? '표시할 데이터가 없습니다.\n'
+                            '서버 카드가 배치(placements)를 중계하면 로케이터가,\n'
+                            'position이 수신되면 태그가 표시됩니다.'
+                        : '표시할 데이터가 없습니다.\n'
+                            '[위치 설정] 탭에서 도면과 로케이터를 배치하고,\n'
+                            '상단에서 MQTT 브로커에 연결하세요.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
@@ -467,8 +482,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                   final size =
                       Size(constraints.maxWidth, constraints.maxHeight);
                   return _is3d
-                      ? _build3d(app, rays, size)
-                      : _build2d(app, rays, size);
+                      ? _build3d(app, placements, rays, size)
+                      : _build2d(app, placements, rays, size);
                 }),
         ),
         const Divider(height: 1),
@@ -488,8 +503,9 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   // =========================================================
   // 3D 뷰
   // =========================================================
-  Widget _build3d(AppState app, List<_AngleRay> rays, Size size) {
-    _scale3d ??= _fitScale3d(app, size);
+  Widget _build3d(AppState app, List<PlacedLocator> placements,
+      List<_AngleRay> rays, Size size) {
+    _scale3d ??= _fitScale3d(app, placements, size);
     return Listener(
       onPointerSignal: (e) {
         if (e is PointerScrollEvent) {
@@ -515,6 +531,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
             size: size,
             painter: _Live3dPainter(
               app: app,
+              placements: placements,
               rays: rays,
               tracks: _tracks,
               now: DateTime.now(),
@@ -535,14 +552,14 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   }
 
   /// 장면(도면 또는 배치 영역)을 화면에 맞추는 3D 스케일 (px/m).
-  double _fitScale3d(AppState app, Size canvas) {
-    final b = _sceneBounds(app);
+  double _fitScale3d(AppState app, List<PlacedLocator> placements, Size canvas) {
+    final b = _sceneBounds(app, placements);
     final extent = math.max(b.width, b.height).clamp(2.0, double.infinity);
     return math.min(canvas.width, canvas.height) / extent * 0.7;
   }
 
   /// world 좌표(미터) 기준 장면 영역.
-  Rect _sceneBounds(AppState app) {
+  Rect _sceneBounds(AppState app, List<PlacedLocator> placements) {
     final img = app.floorImage;
     if (img != null) {
       final t = app.transform;
@@ -552,7 +569,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
       return Rect.fromPoints(a, b);
     }
     final pts = <Offset>[
-      for (final p in app.placements) Offset(p.coordinate.x, p.coordinate.y),
+      for (final p in placements) Offset(p.coordinate.x, p.coordinate.y),
       for (final t in _tracks.values) t.pos,
     ];
     if (pts.isEmpty) return const Rect.fromLTWH(-5, -5, 10, 10);
@@ -566,8 +583,9 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   // =========================================================
   // 2D 뷰 (기존 평면도)
   // =========================================================
-  Widget _build2d(AppState app, List<_AngleRay> rays, Size size) {
-    final view = _viewTransform(app, size);
+  Widget _build2d(AppState app, List<PlacedLocator> placements,
+      List<_AngleRay> rays, Size size) {
+    final view = _viewTransform(app, placements, size);
     return Listener(
       onPointerSignal: (e) {
         if (e is PointerScrollEvent) {
@@ -595,6 +613,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                   size: size,
                   painter: _Live2dPainter(
                     app: app,
+                    placements: placements,
                     view: view,
                     rays: rays,
                     tracks: _tracks,
@@ -627,7 +646,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   }
 
   /// 도면(또는 배치 영역)을 캔버스에 맞추는 2D 뷰 변환.
-  WorldTransform _viewTransform(AppState app, Size canvas) {
+  WorldTransform _viewTransform(
+      AppState app, List<PlacedLocator> placements, Size canvas) {
     final base = app.transform;
     if (_zoom != null && canvas == _lastCanvas) {
       return base.copyWith(zoom: _zoom, panPx: _pan);
@@ -641,7 +661,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
           Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
     } else {
       final pts = <Offset>[
-        for (final p in app.placements)
+        for (final p in placements)
           base.worldToImage(Offset(p.coordinate.x, p.coordinate.y)),
         for (final t in _tracks.values) base.worldToImage(t.pos),
       ];
@@ -781,6 +801,7 @@ void _label(Canvas canvas, Offset pos, String text,
 // =========================================================
 class _Live3dPainter extends CustomPainter {
   final AppState app;
+  final List<PlacedLocator> placements;
   final List<_AngleRay> rays;
   final Map<String, _TagTrack> tracks;
   final DateTime now;
@@ -796,6 +817,7 @@ class _Live3dPainter extends CustomPainter {
 
   _Live3dPainter({
     required this.app,
+    required this.placements,
     required this.rays,
     required this.tracks,
     required this.now,
@@ -847,11 +869,11 @@ class _Live3dPainter extends CustomPainter {
     _drawGrid(canvas, bounds);
     _drawAxes(canvas, bounds);
 
-    final placementById = {for (final p in app.placements) p.locatorId: p};
+    final placementById = {for (final p in placements) p.locatorId: p};
 
     // 커버리지 원 (바닥에 먼저)
     if (showCoverage) {
-      for (final p in app.placements) {
+      for (final p in placements) {
         _drawCoverage3d(canvas, p);
       }
     }
@@ -866,7 +888,7 @@ class _Live3dPainter extends CustomPainter {
     }
 
     // 로케이터 보드 (자세 표현)
-    for (final p in app.placements) {
+    for (final p in placements) {
       final receiving = rays.any((r) => r.locatorId == p.locatorId && r.live);
       _drawLocatorBoard3d(canvas, p, receiving);
     }
@@ -885,7 +907,7 @@ class _Live3dPainter extends CustomPainter {
       return Rect.fromPoints(a, b);
     }
     final pts = <Offset>[
-      for (final p in app.placements) Offset(p.coordinate.x, p.coordinate.y),
+      for (final p in placements) Offset(p.coordinate.x, p.coordinate.y),
       for (final t in tracks.values) t.pos,
     ];
     if (pts.isEmpty) return const Rect.fromLTWH(-5, -5, 10, 10);
@@ -1230,6 +1252,7 @@ class _Live3dPainter extends CustomPainter {
 // =========================================================
 class _Live2dPainter extends CustomPainter {
   final AppState app;
+  final List<PlacedLocator> placements;
   final WorldTransform view;
   final List<_AngleRay> rays;
   final Map<String, _TagTrack> tracks;
@@ -1241,6 +1264,7 @@ class _Live2dPainter extends CustomPainter {
 
   _Live2dPainter({
     required this.app,
+    required this.placements,
     required this.view,
     required this.rays,
     required this.tracks,
@@ -1287,10 +1311,10 @@ class _Live2dPainter extends CustomPainter {
 
     _drawGrid2d(canvas, size);
 
-    final placementById = {for (final p in app.placements) p.locatorId: p};
+    final placementById = {for (final p in placements) p.locatorId: p};
 
     if (showCoverage) {
-      for (final p in app.placements) {
+      for (final p in placements) {
         _drawCoverage2d(canvas, p);
       }
     }
@@ -1303,7 +1327,7 @@ class _Live2dPainter extends CustomPainter {
       }
     }
 
-    for (final p in app.placements) {
+    for (final p in placements) {
       final receiving = rays.any((r) => r.locatorId == p.locatorId && r.live);
       _drawLocatorBoard2d(canvas, p, receiving);
     }

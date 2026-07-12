@@ -8,6 +8,7 @@ import '../widgets/cloud_config_form.dart';
 import '../widgets/hover_tip.dart';
 import '../widgets/locator_avatar.dart';
 import '../widgets/tab_guide.dart';
+import '../widgets/update_flow.dart';
 import 'mqtt_viewer_tab.dart' show MqttTopicExplorer;
 import 'position_live_view.dart';
 
@@ -83,11 +84,18 @@ class _ExternalTestTabState extends State<ExternalTestTab>
             value: ext.mqtt,
             child: IndexedStack(
               index: _subTabs.index,
-              children: const [
-                _DeviceListBody(),
-                MqttTopicExplorer(),
-                // 외부망은 position만 중계되므로 angle 점선 UI는 숨긴다
-                PositionLiveView(supportsAngle: false),
+              children: [
+                const _DeviceListBody(),
+                const MqttTopicExplorer(),
+                // 외부망은 position만 중계되므로 angle 점선 UI는 숨긴다.
+                // 로케이터 배치는 서버 카드가 중계한 placements를 쓴다 —
+                // 내부망에 접속한 적 없는 PC에서도 로케이터가 보인다.
+                // (구버전 에이전트라 중계가 없으면 로컬 프로젝트 배치 폴백)
+                PositionLiveView(
+                  supportsAngle: false,
+                  placements:
+                      ext.placements.isEmpty ? null : ext.placements,
+                ),
               ],
             ),
           ),
@@ -357,6 +365,32 @@ class _DeviceCardState extends State<_DeviceCard> {
     ));
   }
 
+  /// 소프트웨어 업데이트 — 외부망 목록에서도 재배포는 PC→카드 SSH 직접 접속
+  /// (provision.sh)이라, 카드 IP에 닿을 수 있는 네트워크에서만 성공한다.
+  Future<void> _doUpdate(ExternalDevice d) async {
+    if (d.ip.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('카드 IP를 알 수 없어 업데이트할 수 없습니다')));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final updated = await runCardUpdateFlow(
+        context,
+        deviceLabel: d.deviceId,
+        ip: d.ip,
+        isServer: d.isServer,
+        currentVer: d.ver,
+      );
+      if (updated && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('업데이트 완료 — 버전 표기는 다음 상태 발행 때 갱신됩니다')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = widget.device;
@@ -415,6 +449,16 @@ class _DeviceCardState extends State<_DeviceCard> {
                             '${d.uptimeText} (부팅 ${d.bootTimeText ?? "?"})'),
                       if (d.locatorId != null && d.locatorId!.isNotEmpty)
                         _info('로케이터 ID', d.locatorId!),
+                      if (d.coordinate != null)
+                        _info('좌표',
+                            '(${d.coordinate!.x.toStringAsFixed(2)}, '
+                            '${d.coordinate!.y.toStringAsFixed(2)}, '
+                            '${d.coordinate!.z.toStringAsFixed(2)}) m'),
+                      if (d.orientation != null)
+                        _info('자세',
+                            '(${d.orientation!.x.toStringAsFixed(0)}°, '
+                            '${d.orientation!.y.toStringAsFixed(0)}°, '
+                            '${d.orientation!.z.toStringAsFixed(0)}°)'),
                       if (d.uartRxRateBps != null)
                         _info('UART', '${d.uartRxRateBps} B/s'),
                       _info('상태 수신', _age(d.lastRx)),
@@ -465,6 +509,14 @@ class _DeviceCardState extends State<_DeviceCard> {
                             () => ext.sendCommand(d.deviceId, 'LED_BLINK')),
                       ),
                     _serviceRestartBtn(ext, d),
+                    _actionBtn(
+                      icon: Icons.system_update_alt,
+                      label: '업데이트',
+                      tip: 'PC 배포 저장소의 최신 버전과 비교해, 다르면 재배포로\n'
+                          '업데이트합니다. 이 PC에서 카드 IP로 SSH 접속이 가능해야\n'
+                          '하므로 현장과 같은 네트워크에 있을 때만 동작합니다.',
+                      onPressed: () => _doUpdate(d),
+                    ),
                     _actionBtn(
                       icon: Icons.restart_alt,
                       label: '리부트',

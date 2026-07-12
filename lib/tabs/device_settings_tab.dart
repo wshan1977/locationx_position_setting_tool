@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../models/discovered_device.dart';
 import '../services/config_api_client.dart';
+import '../services/deploy_service.dart';
 import '../services/udp_control_service.dart';
 import '../widgets/cloud_config_form.dart';
+import '../widgets/update_flow.dart';
 import '../widgets/hover_tip.dart';
 import '../widgets/locator_avatar.dart';
 import '../widgets/password_gate.dart';
@@ -43,8 +45,8 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           icon: Icons.tune,
           text:
               '작업 순서: ① [장치 검색]으로 카드 찾기 → ② 왼쪽 목록에서 카드 선택 → '
-              '③ 브로커 설정·서비스 재시작·재부팅·LED 식별 — 서버 카드는 내부망/외부망 '
-              '브로커를 각각 설정합니다',
+              '③ 브로커 설정·서비스 재시작·재부팅·LED 식별·소프트웨어 업데이트 — '
+              '서버 카드는 내부망/외부망 브로커를 각각 설정합니다',
         ),
         const Divider(height: 1),
         Expanded(
@@ -416,6 +418,16 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
                 ),
               ),
               hoverTip(
+                'PC의 배포 저장소(${DeployService.serverRepo})의 최신 버전과\n'
+                '카드 버전을 비교해, 다르면 재배포(provision.sh)로 업데이트합니다.\n'
+                '수 분 걸릴 수 있으며 이 PC의 SSH 키가 카드에 등록돼 있어야 합니다.',
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _doUpdate(d),
+                  icon: const Icon(Icons.system_update_alt),
+                  label: const Text('소프트웨어 업데이트'),
+                ),
+              ),
+              hoverTip(
                 '서버 카드를 재부팅합니다. 다시 켜질 때까지 1~2분 걸리며\n'
                 '그동안 브로커·위치 계산이 모두 중단됩니다.',
                 OutlinedButton.icon(
@@ -490,6 +502,16 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
                   onPressed: _busy ? null : () => _doRestartService(d),
                   icon: const Icon(Icons.restart_alt),
                   label: const Text('AOA 서비스 재시작'),
+                ),
+              ),
+              hoverTip(
+                'PC의 배포 저장소(${DeployService.locatorRepo})의 최신 버전과\n'
+                '카드 버전을 비교해, 다르면 재배포(provision.sh)로 업데이트합니다.\n'
+                '수 분 걸릴 수 있으며 이 PC의 SSH 키가 카드에 등록돼 있어야 합니다.',
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _doUpdate(d),
+                  icon: const Icon(Icons.system_update_alt),
+                  label: const Text('소프트웨어 업데이트'),
                 ),
               ),
               hoverTip(
@@ -614,6 +636,27 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
       _snack('재부팅 명령 전송됨 — 카드가 다시 켜질 때까지 1~2분 걸립니다');
     } on Exception catch (e) {
       _snack('재부팅 실패: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // 소프트웨어 업데이트 — PC 배포 저장소의 최신 태그와 카드 버전을 비교해
+  // 다르면 Git Bash로 provision.sh <IP>를 실행해 재배포한다 (서버/로케이터 공통).
+  Future<void> _doUpdate(DiscoveredDevice d) async {
+    setState(() => _busy = true);
+    try {
+      final updated = await runCardUpdateFlow(
+        context,
+        deviceLabel: d.device,
+        ip: d.ip,
+        isServer: d.isServer,
+        currentVer: d.ver,
+      );
+      if (updated && mounted) {
+        _snack('업데이트 완료 — 장치 목록을 다시 검색합니다');
+        context.read<AppState>().scan(); // 목록의 ver 표기 갱신
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

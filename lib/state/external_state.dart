@@ -5,6 +5,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 
+import '../models/placement.dart';
+import '../models/vec3.dart';
 import 'mqtt_state.dart';
 
 /// 외부 브로커의 retained status 토픽으로 파악한 장치 1대.
@@ -20,6 +22,11 @@ class ExternalDevice {
   final bool? mqttConnected;
   final double? uartRxRateBps;
   final String? locatorId;
+
+  /// positioning_config에 배치된 로케이터의 좌표(m)·자세(°) — 서버 카드
+  /// cloud-agent v1.2.0+가 상태에 포함한다. 미배치/구버전이면 null.
+  final Vec3? coordinate;
+  final Vec3? orientation;
 
   /// 부팅 후 경과(초) · 부팅 시각(epoch sec) — 카드가 얼마나 켜져 있었는지.
   final int? uptimeSec;
@@ -40,6 +47,8 @@ class ExternalDevice {
     required this.mqttConnected,
     required this.uartRxRateBps,
     required this.locatorId,
+    required this.coordinate,
+    required this.orientation,
     required this.uptimeSec,
     required this.bootTs,
     required this.ts,
@@ -99,6 +108,12 @@ class ExternalDevice {
           j.containsKey('mqtt_connected') ? j['mqtt_connected'] == true : null,
       uartRxRateBps: (j['uart_rx_rate_bps'] as num?)?.toDouble(),
       locatorId: j['locator_id']?.toString(),
+      coordinate: (j['coordinate'] is Map)
+          ? Vec3.fromJson((j['coordinate'] as Map).cast())
+          : null,
+      orientation: (j['orientation'] is Map)
+          ? Vec3.fromJson((j['orientation'] as Map).cast())
+          : null,
       uptimeSec: (j['uptime_sec'] as num?)?.toInt(),
       bootTs: (j['boot_ts'] as num?)?.toInt(),
       ts: (j['ts'] as num?)?.toInt() ?? 0,
@@ -134,6 +149,12 @@ class ExternalState extends ChangeNotifier {
   final Map<String, Completer<CmdResult>> _pending = {};
   final _rand = Random();
 
+  /// 서버 카드가 placements 토픽(retained)으로 중계한 로케이터 배치
+  /// (적용본 positioning_config의 좌표·자세). 내부망에 접속한 적 없는
+  /// PC에서도 위치 확인 뷰가 로케이터를 그릴 수 있게 한다.
+  final List<PlacedLocator> placements = [];
+  String _placementsRaw = '';
+
   /// 연결/해제/오류 등 mqtt 상태 변화를 UI에 전파하기 위한 직전 상태.
   MqttStatus _lastStatus = MqttStatus.disconnected;
 
@@ -153,6 +174,8 @@ class ExternalState extends ChangeNotifier {
 
   Future<void> connect() async {
     devices.clear();
+    placements.clear();
+    _placementsRaw = '';
     agentOnline = null;
     mqtt.clear();
     await mqtt.connect(
@@ -207,6 +230,13 @@ class ExternalState extends ChangeNotifier {
           devices[deviceId] = dev;
           changed = true;
         }
+      } else if (topic == 'placements') {
+        final raw = entry.value.lastPayload;
+        if (raw != _placementsRaw) {
+          _placementsRaw = raw;
+          _parsePlacements(raw);
+          changed = true;
+        }
       } else if (topic.startsWith('cmdres/') && _pending.containsKey(topic)) {
         final completer = _pending.remove(topic)!;
         final payload = entry.value.lastPayload;
@@ -226,6 +256,31 @@ class ExternalState extends ChangeNotifier {
     }
 
     if (changed) notifyListeners();
+  }
+
+  /// placements 페이로드 → [PlacedLocator] 목록.
+  /// {"schema":1, "locators":[{"id","coordinate":{x,y,z},"orientation":{x,y,z}}]}
+  void _parsePlacements(String payload) {
+    placements.clear();
+    final dynamic j;
+    try {
+      j = jsonDecode(payload);
+    } catch (_) {
+      return;
+    }
+    if (j is! Map) return;
+    final locs = j['locators'];
+    if (locs is! List) return;
+    for (final loc in locs) {
+      if (loc is! Map) continue;
+      final id = loc['id']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      placements.add(PlacedLocator(
+        locatorId: id,
+        coordinate: Vec3.fromJson((loc['coordinate'] as Map?)?.cast()),
+        orientation: Vec3.fromJson((loc['orientation'] as Map?)?.cast()),
+      ));
+    }
   }
 
   /// 정렬된 장치 목록: 서버 카드 먼저, 이후 이름순.
