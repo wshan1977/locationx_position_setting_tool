@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:universal_ble/universal_ble.dart';
 
+import '../services/release_repo.dart';
 import '../state/tag_state.dart';
 import '../widgets/hover_tip.dart';
 import '../widgets/tab_guide.dart';
@@ -27,9 +28,15 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
   // 태그별 마지막 상태 읽기 결과
   final _info = <String, BleTagInfo>{};
 
-  // 선택한 펌웨어 파일
+  // 선택한 펌웨어 (GitHub 릴리즈에서 받았거나 로컬 파일)
   String? _gblName;
   Uint8List? _gbl;
+
+  // 공개 배포 저장소(locationx-release)의 Hart 태그 펌웨어 버전
+  List<String>? _relVersions; // null = 아직 안 불러옴
+  String? _relSel;
+  bool _relLoading = false;
+  bool _relDownloading = false;
 
   // OTA 진행
   OtaProgress? _progress;
@@ -254,18 +261,25 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 시작 전부터 항상 보이게: Hart 태그는 OTA 내내 버튼을 눌러야 한다
+                  if (_progress == null) ...[
+                    _holdButtonBanner(done: false),
+                    const SizedBox(height: 12),
+                  ],
+                  _releasePicker(otaRunning),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       OutlinedButton.icon(
                         onPressed: otaRunning ? null : _pickGbl,
                         icon: const Icon(Icons.folder_open, size: 18),
-                        label: const Text('펌웨어 파일 선택'),
+                        label: const Text('로컬 파일 선택'),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _gblName == null
-                              ? '선택된 파일 없음'
+                              ? '선택된 펌웨어 없음'
                               : '$_gblName (${(_gbl!.length / 1024).toStringAsFixed(1)} KB'
                                   '${TagState.versionOf(_gblName!).isEmpty ? '' : ' · v${TagState.versionOf(_gblName!)}'})',
                           style: const TextStyle(fontSize: 12.5),
@@ -319,6 +333,66 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
           ],
         ),
       ),
+    );
+  }
+
+  /// GitHub 공개 배포 저장소의 Hart 태그 펌웨어: 버전 선택 → 받기.
+  Widget _releasePicker(bool otaRunning) {
+    if (_relVersions == null && !_relLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadReleases());
+    }
+    final vers = _relVersions ?? const <String>[];
+    return Row(
+      children: [
+        const Icon(Icons.cloud_download, size: 18, color: Colors.grey),
+        const SizedBox(width: 8),
+        const Text('GitHub 릴리즈', style: TextStyle(fontSize: 12.5)),
+        const SizedBox(width: 10),
+        if (_relLoading)
+          const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2))
+        else if (vers.isEmpty)
+          Text('목록을 받지 못함',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600))
+        else
+          DropdownButton<String>(
+            value: _relSel,
+            isDense: true,
+            items: [
+              for (final v in vers)
+                DropdownMenuItem(
+                  value: v,
+                  child: Text(v == vers.first ? 'v$v (최신)' : 'v$v',
+                      style: const TextStyle(fontSize: 13)),
+                ),
+            ],
+            onChanged: otaRunning ? null : (v) => setState(() => _relSel = v),
+          ),
+        const SizedBox(width: 8),
+        hoverTip(
+          '${ReleaseRepo.repo} 에서 선택한 버전의 .gbl을 받습니다.',
+          FilledButton.tonalIcon(
+            onPressed: otaRunning || _relDownloading || _relSel == null
+                ? null
+                : _downloadRelease,
+            icon: _relDownloading
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download, size: 18),
+            label: const Text('받기'),
+          ),
+        ),
+        IconButton(
+          tooltip: '목록 새로고침',
+          visualDensity: VisualDensity.compact,
+          onPressed: _relLoading || otaRunning ? null : _loadReleases,
+          icon: const Icon(Icons.refresh, size: 18),
+        ),
+      ],
     );
   }
 
@@ -443,6 +517,37 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
       if (mounted) setState(() => _info[t.mac] = info);
     } catch (e) {
       _snack('상태 읽기 실패: $e');
+    }
+  }
+
+  Future<void> _loadReleases() async {
+    if (_relLoading) return;
+    setState(() => _relLoading = true);
+    final vers = await ReleaseRepo.versions(ReleaseRepo.hartTag);
+    if (!mounted) return;
+    setState(() {
+      _relLoading = false;
+      _relVersions = vers;
+      if (_relSel == null || !vers.contains(_relSel)) {
+        _relSel = vers.isEmpty ? null : vers.first;
+      }
+    });
+  }
+
+  Future<void> _downloadRelease() async {
+    final ver = _relSel!;
+    setState(() => _relDownloading = true);
+    try {
+      final bytes = await ReleaseRepo.firmware(ReleaseRepo.hartTag, ver);
+      if (!mounted) return;
+      setState(() {
+        _gblName = 'locationx_hart_tag_v$ver.gbl (GitHub)';
+        _gbl = bytes;
+      });
+    } catch (e) {
+      _snack('$e');
+    } finally {
+      if (mounted) setState(() => _relDownloading = false);
     }
   }
 
