@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.10.0+12
+version: 1.11.0+13
 
 environment:
   sdk: ^3.7.0
@@ -40,6 +40,10 @@ dependencies:
   path: ^1.9.0
   mqtt_client: ^10.8.0
   package_info_plus: ^8.3.0
+  # PC/폰 블루투스로 태그 직접 접속 (Tag 설정 탭 · OTA). 175_BDCI에서 가져온
+  # vendored 3.1.0: VS 2019용 CMake 3.20 등, third_party/universal_ble/VENDORED.md 참고.
+  universal_ble:
+    path: third_party/universal_ble
 
 dev_dependencies:
   flutter_test:

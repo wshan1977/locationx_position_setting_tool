@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 로케이터 실물 프론트 이미지 아바타 — 장치 목록·상세 헤더 공용.
+/// 로케이터 실물 프론트 이미지 아바타 — Locator 목록·상세 헤더 공용.
 /// 에셋이 없는 빌드에서는 기존 안테나 아이콘으로 폴백한다.
 class LocatorAvatar extends StatelessWidget {
   final double size;

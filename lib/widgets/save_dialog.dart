@@ -11,7 +11,7 @@ Future<void> showPushToServerDialog(BuildContext context) async {
   final app = context.read<AppState>();
 
   if (app.serverIp.isEmpty) {
-    _snack(context, '서버 IP가 없습니다. 장치 검색을 하거나 전역 설정에서 IP를 입력하세요.');
+    _snack(context, '서버 IP가 없습니다. Locator 검색을 하거나 전역 설정에서 IP를 입력하세요.');
     return;
   }
   if (app.placements.isEmpty) {

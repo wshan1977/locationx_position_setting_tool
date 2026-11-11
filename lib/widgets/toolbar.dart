@@ -214,7 +214,7 @@ class AppToolbar extends StatelessWidget {
     }
 
     if (app.serverIp.isEmpty) {
-      snack('서버 IP가 설정되지 않았습니다. [장치 검색]으로 서버 카드를 먼저 찾으세요.');
+      snack('서버 IP가 설정되지 않았습니다. [Locator 검색]으로 서버 카드를 먼저 찾으세요.');
       return;
     }
     try {

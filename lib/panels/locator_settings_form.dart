@@ -300,7 +300,7 @@ class LocatorSettingsForm extends StatelessWidget {
           children: [
             Icon(Icons.gamepad_outlined, size: 16, color: Colors.grey.shade700),
             const SizedBox(width: 6),
-            const Text('장치 제어', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Locator 제어', style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 4),
@@ -364,7 +364,7 @@ String _resolvePlacementIp(AppState app, PlacedLocator placement) {
 Widget _noIpHint() => Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
-        '카드 IP를 알 수 없습니다. [장치 검색]으로 이 로케이터가 검색되면 사용할 수 있습니다.',
+        '카드 IP를 알 수 없습니다. [Locator 검색]으로 이 로케이터가 검색되면 사용할 수 있습니다.',
         style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
       ),
     );
@@ -548,7 +548,7 @@ class _DeviceControlButtonsState extends State<_DeviceControlButtons> {
       runSpacing: 6,
       children: [
         hoverTip(
-          '카드의 LED를 8초간 점멸시켜 현장에서 어떤 장치인지 확인합니다.',
+          '카드의 LED를 8초간 점멸시켜 현장에서 어떤 Locator인지 확인합니다.',
           OutlinedButton.icon(
             onPressed: _busy ? null : () => _doLed(ip),
             icon: const Icon(Icons.lightbulb, size: 16),

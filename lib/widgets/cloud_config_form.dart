@@ -5,7 +5,7 @@ import 'hover_tip.dart';
 import 'password_gate.dart';
 
 /// 서버 카드 cloud-agent(외부망 중계) 설정 폼.
-/// 장치 설정 탭의 서버 패널과 외부망 테스트 탭의 설정 다이얼로그가 공유한다.
+/// Locator 설정 탭의 서버 패널과 외부망 테스트 탭의 설정 다이얼로그가 공유한다.
 /// /api/cloud 조회 → 활성화·브로커·전송속도 편집 → 저장+적용(비밀번호 확인)
 /// 후 에이전트가 생성한 siteId를 다시 읽어 [onApplied]로 알린다.
 class CloudConfigForm extends StatefulWidget {
@@ -126,7 +126,7 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
           title: const Text('중계 활성화 (cloud-agent)',
               style: TextStyle(fontSize: 13.5)),
           subtitle: const Text(
-              'position 결과·장치 상태를 외부 브로커로 발행하고 원격 명령을 받습니다',
+              'position 결과·Locator 상태를 외부 브로커로 발행하고 원격 명령을 받습니다',
               style: TextStyle(fontSize: 11.5)),
           value: _enabled,
           onChanged:

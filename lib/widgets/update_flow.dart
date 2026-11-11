@@ -4,8 +4,8 @@ import '../services/deploy_service.dart';
 import 'password_gate.dart';
 import 'update_dialog.dart';
 
-/// 카드 소프트웨어 업데이트(재배포) 공통 플로우 — 장치 설정 탭과
-/// 외부망 장치 목록에서 함께 쓴다.
+/// 카드 소프트웨어 업데이트(재배포) 공통 플로우 — Locator 설정 탭과
+/// 외부망 Locator 목록에서 함께 쓴다.
 ///
 /// PC 배포 저장소의 최신 태그와 카드 설치 버전을 비교해, 다르면 확인 후
 /// Git Bash로 `provision.sh <ip>`를 실행해 재배포한다 (SSH 직접 접속 필요).

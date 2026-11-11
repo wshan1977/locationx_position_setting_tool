@@ -47,3 +47,6 @@ release/*.zip
 
 # 원본 CAD 메시 (120MB · GitHub 100MB 제한 초과 · 경량화본은 assets/models/)
 image/*.stl
+
+# vendored plugin build leftovers
+third_party/universal_ble/android/build/

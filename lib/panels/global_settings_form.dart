@@ -178,7 +178,7 @@ class GlobalSettingsForm extends StatelessWidget {
         const SizedBox(height: 8),
         _cfgTip(
           '설정을 전송할 MQTT 서버 카드의 IP입니다.\n'
-          '[장치 검색]으로 서버 카드가 발견되면 자동으로 채워집니다.',
+          '[Locator 검색]으로 서버 카드가 발견되면 자동으로 채워집니다.',
           TextFormField(
             key: ValueKey('serverIp:${app.serverIp}'),
             initialValue: app.serverIp,

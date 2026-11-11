@@ -21,8 +21,8 @@ os.makedirs(os.path.join(BASE, "service"), exist_ok=True)
 
 AGENT_DIR = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "..", "..",
-    "locationx_position_server_config", "files", "payload", "agents"))
+    "..", "..", "..", "..",
+    "Locator", "locationx_position_server_config", "files", "payload", "agents"))
 sys.path.insert(0, AGENT_DIR)
 
 import locationx_config_server  # noqa: E402

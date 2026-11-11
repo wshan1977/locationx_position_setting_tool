@@ -16,10 +16,12 @@ import 'services/session_storage.dart';
 import 'state/app_state.dart';
 import 'state/external_state.dart';
 import 'state/mqtt_state.dart';
+import 'state/tag_state.dart';
 import 'tabs/data_monitor_tab.dart';
 import 'tabs/device_settings_tab.dart';
 import 'tabs/external_test_tab.dart';
 import 'tabs/mqtt_viewer_tab.dart';
+import 'tabs/tag_settings_tab.dart';
 import 'widgets/hover_tip.dart';
 import 'widgets/tab_guide.dart';
 import 'widgets/toolbar.dart';
@@ -30,6 +32,7 @@ Future<void> main() async {
   final app = AppState();
   final mqtt = MqttState();
   final ext = ExternalState();
+  final tags = TagState();
 
   // 로케이터 실물 케이스 3D 메시·실물 사진 — 로드 후 다음 리페인트부터 표시
   unawaited(CaseMesh.ensureLoaded());
@@ -59,6 +62,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: app),
         ChangeNotifierProvider.value(value: mqtt),
         ChangeNotifierProvider.value(value: ext),
+        ChangeNotifierProvider.value(value: tags),
         ChangeNotifierProvider.value(value: autoSaver),
       ],
       child: const LocationXApp(),
@@ -66,7 +70,7 @@ Future<void> main() async {
   );
 }
 
-/// 종료 시점에 MQTT가 연결돼 있었다면, 장치 검색으로 서버 주소가
+/// 종료 시점에 MQTT가 연결돼 있었다면, Locator 검색으로 서버 주소가
 /// 그대로인지 확인한 뒤 자동으로 다시 연결한다.
 /// (검색된 서버 카드 IP가 저장된 주소와 다르면 자동 연결하지 않음)
 Future<void> _autoReconnect(
@@ -175,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
@@ -203,19 +207,21 @@ class _HomeScreenState extends State<HomeScreen>
                   child: TabBar(
                     controller: _tabs,
                     onTap: (_) => setState(() {}),
-                    // 현장 작업 순서대로 번호를 붙인다: 장치 준비 → 배치 →
+                    // 현장 작업 순서대로 번호를 붙인다: Locator 준비 → Tag 준비 → 배치 →
                     // 수신 점검 → 내부망 확인 → 외부망 확인
                     tabs: const [
                       Tab(icon: Icon(Icons.tune, size: 18),
-                          text: '① 장치 설정'),
+                          text: '① Locator 설정'),
+                      Tab(icon: Icon(Icons.sell, size: 18),
+                          text: '② Tag 설정'),
                       Tab(icon: Icon(Icons.map, size: 18),
-                          text: '② 위치 설정 (서버)'),
+                          text: '③ 위치 설정 (서버)'),
                       Tab(icon: Icon(Icons.monitor_heart, size: 18),
-                          text: '③ 데이터 수신'),
+                          text: '④ 데이터 수신'),
                       Tab(icon: Icon(Icons.account_tree, size: 18),
-                          text: '④ MQTT 뷰어 (내부망)'),
+                          text: '⑤ MQTT 뷰어 (내부망)'),
                       Tab(icon: Icon(Icons.cloud_sync, size: 18),
-                          text: '⑤ 외부망 테스트'),
+                          text: '⑥ 외부망 테스트'),
                     ],
                   ),
                 ),
@@ -237,6 +243,7 @@ class _HomeScreenState extends State<HomeScreen>
               index: _tabs.index,
               children: const [
                 DeviceSettingsTab(),
+                TagSettingsTab(),
                 PositionSettingScreen(),
                 DataMonitorTab(),
                 MqttViewerTab(),
@@ -344,7 +351,7 @@ class _CanvasAreaState extends State<_CanvasArea> {
   }
 }
 
-/// 탭 2: AOA Locator 위치 설정 (기존 화면).
+/// 탭 3: AOA Locator 위치 설정 (기존 화면).
 class PositionSettingScreen extends StatelessWidget {
   const PositionSettingScreen({super.key});
 
@@ -354,7 +361,7 @@ class PositionSettingScreen extends StatelessWidget {
       children: [
         const TabGuide(
           icon: Icons.map,
-          text: '작업 순서: ① 도면 이미지 불러오기 → ② 오른쪽 장치 목록의 로케이터를 '
+          text: '작업 순서: ① 도면 이미지 불러오기 → ② Locator 목록의 로케이터를 '
               '도면에 드래그해 배치 → ③ 좌표·설치 자세 조정 → ④ 서버로 전송',
         ),
         const AppToolbar(),
@@ -364,7 +371,7 @@ class PositionSettingScreen extends StatelessWidget {
             final w = constraints.maxWidth;
             final settings = w >= 1200 ? 320.0 : (w * 0.26).clamp(200.0, 320.0);
             final devices = w >= 1200 ? 300.0 : (w * 0.24).clamp(180.0, 300.0);
-            // 장치 검색 패널은 장치 설정 탭과 동일하게 왼쪽에 둔다
+            // Locator 검색 패널은 Locator 설정 탭과 동일하게 왼쪽에 둔다
             return Row(
               children: [
                 SizedBox(width: devices, child: const RightDevicePanel()),

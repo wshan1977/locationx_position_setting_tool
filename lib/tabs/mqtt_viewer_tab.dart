@@ -10,7 +10,7 @@ import '../widgets/mqtt_connect_bar.dart';
 import '../widgets/tab_guide.dart';
 import 'position_live_view.dart';
 
-/// 탭 4: MQTT 뷰어 (MQTT Explorer 유사) + 3D 위치인식 확인 서브탭.
+/// 탭 5: MQTT 뷰어 (MQTT Explorer 유사) + 3D 위치인식 확인 서브탭.
 /// 토픽 뷰어: 좌측 토픽 트리 / 우측 선택 토픽 상세 + 실시간 메시지 로그 + 발행.
 /// 위치 확인: 도면 위에 angle 방향 점선과 계산된 태그 위치를 실시간 표시.
 class MqttViewerTab extends StatefulWidget {

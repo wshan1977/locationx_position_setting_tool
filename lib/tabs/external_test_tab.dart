@@ -12,10 +12,10 @@ import '../widgets/update_flow.dart';
 import 'mqtt_viewer_tab.dart' show MqttTopicExplorer;
 import 'position_live_view.dart';
 
-/// 탭 5: 외부망 테스트.
+/// 탭 6: 외부망 테스트.
 /// 서버 카드의 cloud-agent가 외부 브로커(broker.hivemq.com 등)로 중계한
 /// `locationx/<siteId>/#` 토픽에 접속해:
-/// - 장치 목록: 전 장치 상태(온도·서비스·연결) + 리부트/서비스 재시작/LED 식별
+/// - Locator 목록: 전 Locator 상태(온도·서비스·연결) + 리부트/서비스 재시작/LED 식별
 /// - 토픽 뷰어: 중계 토픽 탐색기 (프리픽스가 벗겨진 토픽으로 표시 · 발행 시 자동 전치)
 /// - 위치 확인: 중계된 position으로 2D/3D 라이브 뷰 (내부망 MQTT 뷰어와 동일 화면)
 class ExternalTestTab extends StatefulWidget {
@@ -53,7 +53,7 @@ class _ExternalTestTabState extends State<ExternalTestTab>
         const TabGuide(
           icon: Icons.cloud_sync,
           text: '외부망(인터넷) 확인: ① [서버 중계 설정]에서 중계 활성화 → ② siteId 확인 '
-              '→ ③ 외부 브로커에 연결 — 현장 밖 어디서든 장치 상태·제어·위치를 봅니다 '
+              '→ ③ 외부 브로커에 연결 — 현장 밖 어디서든 Locator 상태·제어·위치를 봅니다 '
               '(angle은 중계되지 않음)',
         ),
         const _ExtConnectBar(),
@@ -67,7 +67,7 @@ class _ExternalTestTabState extends State<ExternalTestTab>
                 onTap: (_) => setState(() {}),
                 labelStyle: const TextStyle(fontSize: 12.5),
                 tabs: const [
-                  Tab(height: 36, text: '장치 목록'),
+                  Tab(height: 36, text: 'Locator 목록'),
                   Tab(height: 36, text: '토픽 뷰어'),
                   Tab(height: 36, text: '위치 확인'),
                 ],
@@ -264,7 +264,7 @@ class _ExtConnectBarState extends State<_ExtConnectBar> {
 }
 
 // =========================================================
-// 장치 목록
+// Locator 목록
 // =========================================================
 class _DeviceListBody extends StatelessWidget {
   const _DeviceListBody();
@@ -274,7 +274,7 @@ class _DeviceListBody extends StatelessWidget {
     final ext = context.watch<ExternalState>();
     if (!ext.isConnected && ext.devices.isEmpty) {
       return const Center(
-        child: Text('외부 브로커에 연결하면 중계된 장치 상태가 표시됩니다',
+        child: Text('외부 브로커에 연결하면 중계된 Locator 상태가 표시됩니다',
             style: TextStyle(color: Colors.grey)),
       );
     }
@@ -286,7 +286,7 @@ class _DeviceListBody extends StatelessWidget {
         Expanded(
           child: devices.isEmpty
               ? const Center(
-                  child: Text('장치 상태 수신 대기 중... (retained 메시지는 연결 즉시 도착)',
+                  child: Text('Locator 상태 수신 대기 중... (retained 메시지는 연결 즉시 도착)',
                       style: TextStyle(color: Colors.grey, fontSize: 13)))
               : ListView.builder(
                   padding: const EdgeInsets.all(10),
@@ -645,7 +645,7 @@ class _CloudConfigDialogState extends State<_CloudConfigDialog> {
       content: SizedBox(
         width: 460,
         child: serverIp.isEmpty
-            ? const Text('서버 카드 IP가 없습니다 — 위치 설정 탭에서 장치를 먼저 검색하세요',
+            ? const Text('서버 카드 IP가 없습니다 — 위치 설정 탭에서 [Locator 검색]을 먼저 하세요',
                 style: TextStyle(fontSize: 13))
             : SingleChildScrollView(
                 child: CloudConfigForm(

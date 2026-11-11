@@ -7,6 +7,7 @@ import 'package:locationx_position_setting_tool/services/session_storage.dart';
 import 'package:locationx_position_setting_tool/state/app_state.dart';
 import 'package:locationx_position_setting_tool/state/external_state.dart';
 import 'package:locationx_position_setting_tool/state/mqtt_state.dart';
+import 'package:locationx_position_setting_tool/state/tag_state.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester) {
@@ -24,6 +25,7 @@ void main() {
           ChangeNotifierProvider.value(value: app),
           ChangeNotifierProvider.value(value: mqtt),
           ChangeNotifierProvider.value(value: ext),
+          ChangeNotifierProvider.value(value: TagState()),
           ChangeNotifierProvider.value(value: SessionAutoSaver(app, mqtt, ext)),
         ],
         child: const LocationXApp(),
@@ -31,24 +33,36 @@ void main() {
     );
   }
 
-  testWidgets('5-tab layout renders', (WidgetTester tester) async {
+  testWidgets('6-tab layout renders', (WidgetTester tester) async {
     await pumpApp(tester);
 
-    expect(find.text('① 장치 설정'), findsOneWidget);
-    expect(find.text('② 위치 설정 (서버)'), findsOneWidget);
-    expect(find.text('③ 데이터 수신'), findsOneWidget);
-    expect(find.text('④ MQTT 뷰어 (내부망)'), findsOneWidget);
-    expect(find.text('⑤ 외부망 테스트'), findsOneWidget);
+    expect(find.text('① Locator 설정'), findsOneWidget);
+    expect(find.text('② Tag 설정'), findsOneWidget);
+    expect(find.text('③ 위치 설정 (서버)'), findsOneWidget);
+    expect(find.text('④ 데이터 수신'), findsOneWidget);
+    expect(find.text('⑤ MQTT 뷰어 (내부망)'), findsOneWidget);
+    expect(find.text('⑥ 외부망 테스트'), findsOneWidget);
 
-    // 초기 탭: 장치 설정
-    expect(find.text('장치 검색 (UDP)'), findsOneWidget);
+    // 초기 탭: Locator 설정
+    expect(find.text('Locator 검색 (UDP)'), findsOneWidget);
+  });
+
+  testWidgets('tag settings tab shows BLE scan and empty list',
+      (WidgetTester tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('② Tag 설정'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tag 검색 (BLE)'), findsOneWidget);
+    expect(find.text('좌측에서 Tag를 선택하세요.'), findsOneWidget);
   });
 
   testWidgets('position setting tab keeps 3-pane layout',
       (WidgetTester tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('② 위치 설정 (서버)'));
+    await tester.tap(find.text('③ 위치 설정 (서버)'));
     await tester.pumpAndSettle();
 
     expect(find.text('전역 Positioning 설정'), findsOneWidget);

@@ -15,8 +15,8 @@ import '../widgets/password_gate.dart';
 import '../widgets/tab_guide.dart';
 import '../state/app_state.dart';
 
-/// 탭 1: AOA Locator 장치 설정.
-/// 좌측 카드 목록에서 장치를 선택하면 우측에서
+/// 탭 1: AOA Locator 설정.
+/// 좌측 카드 목록에서 Locator를 선택하면 우측에서
 /// MQTT 브로커 설정(UDP MQTT_SET) / 서비스 재시작 / 재부팅 / LED 식별을 수행한다.
 class DeviceSettingsTab extends StatefulWidget {
   const DeviceSettingsTab({super.key});
@@ -44,7 +44,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
         const TabGuide(
           icon: Icons.tune,
           text:
-              '작업 순서: ① [장치 검색]으로 카드 찾기 → ② 왼쪽 목록에서 카드 선택 → '
+              '작업 순서: ① [Locator 검색]으로 카드 찾기 → ② 왼쪽 목록에서 카드 선택 → '
               '③ 브로커 설정·서비스 재시작·재부팅·LED 식별·소프트웨어 업데이트 — '
               '서버 카드는 내부망/외부망 브로커를 각각 설정합니다',
         ),
@@ -60,7 +60,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
                     selected == null
                         ? Center(
                           child: Text(
-                            '좌측에서 장치를 선택하세요.',
+                            '좌측에서 Locator를 선택하세요.',
                             style: TextStyle(color: Colors.grey.shade600),
                           ),
                         )
@@ -74,7 +74,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
   }
 
   // =========================================================
-  // 좌측: 장치 목록
+  // 좌측: Locator 목록
   // =========================================================
   Widget _deviceList(AppState app) {
     final servers = app.devices.where((d) => d.isServer).toList();
@@ -97,7 +97,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                       : const Icon(Icons.radar),
-              label: Text(app.scanning ? '검색 중...' : '장치 검색 (UDP)'),
+              label: Text(app.scanning ? '검색 중...' : 'Locator 검색 (UDP)'),
             ),
           ),
         ),
@@ -106,7 +106,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
               app.devices.isEmpty
                   ? Center(
                     child: Text(
-                      app.scanning ? '' : '검색된 카드가 없습니다.\n[장치 검색]을 눌러주세요.',
+                      app.scanning ? '' : '검색된 카드가 없습니다.\n[Locator 검색]을 눌러주세요.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
@@ -173,7 +173,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
   }
 
   // =========================================================
-  // 우측: 선택 장치 상세
+  // 우측: 선택 Locator 상세
   // =========================================================
   Widget _detailPanel(AppState app, DiscoveredDevice d) {
     return SingleChildScrollView(
@@ -335,7 +335,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
         _sectionCard(
           Icons.cloud_sync,
           '외부망 MQTT 브로커 (중계 · cloud-agent)',
-          '계산된 position·장치 상태를 인터넷 브로커로 중계 — [⑤ 외부망 테스트] 탭에서 사용',
+          '계산된 position·Locator 상태를 인터넷 브로커로 중계 — [⑥ 외부망 테스트] 탭에서 사용',
           CloudConfigForm(
             key: ValueKey('server-cloud-${d.dedupeKey}'),
             serverIp: d.ip,
@@ -344,7 +344,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
         const SizedBox(height: 14),
         _sectionCard(
           Icons.settings,
-          '장치 제어',
+          '서버 카드 제어',
           null,
           Wrap(
             spacing: 8,
@@ -444,7 +444,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           '이 카드에서 mosquitto MQTT 브로커(기본 포트 1883)와 positioning 서비스가 구동됩니다.\n'
           'positioning 서비스는 내부망 브로커에서 angle을 수신하고 position을 발행하며, '
           '외부망 중계(cloud-agent)는 그 결과만 인터넷 브로커로 내보냅니다.\n'
-          '위치 설정은 [② 위치 설정] 탭에서, 수신 확인은 [③ 데이터 수신]·[④ MQTT 뷰어] 탭에서 합니다.',
+          '위치 설정은 [③ 위치 설정] 탭에서, 수신 확인은 [④ 데이터 수신]·[⑤ MQTT 뷰어] 탭에서 합니다.',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
       ],
@@ -471,7 +471,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
         const SizedBox(height: 14),
         _sectionCard(
           Icons.settings,
-          '장치 제어',
+          'Locator 제어',
           null,
           Wrap(
             spacing: 8,
@@ -487,7 +487,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
                 ),
               ),
               hoverTip(
-                '카드의 LED를 8초간 점멸시켜 현장에서 어떤 장치인지 확인합니다.\n'
+                '카드의 LED를 8초간 점멸시켜 현장에서 어떤 Locator인지 확인합니다.\n'
                 '(카드 동작에는 영향 없음)',
                 OutlinedButton.icon(
                   onPressed: _busy ? null : () => _doLedBlink(d),
@@ -654,7 +654,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
         currentVer: d.ver,
       );
       if (updated && mounted) {
-        _snack('업데이트 완료 — 장치 목록을 다시 검색합니다');
+        _snack('업데이트 완료 — Locator 목록을 다시 검색합니다');
         context.read<AppState>().scan(); // 목록의 ver 표기 갱신
       }
     } finally {
