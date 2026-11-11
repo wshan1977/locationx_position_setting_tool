@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/placement.dart';
+import '../services/mask_faces.dart';
 import '../services/udp_control_service.dart';
 import '../state/app_state.dart';
 import '../widgets/hover_tip.dart';
@@ -288,6 +289,12 @@ class LocatorSettingsForm extends StatelessWidget {
         ),
         const SizedBox(height: 8),
 
+        // ---- 설정 그룹: 반사면 마스크 (카드 azimuthMask) ----
+        _MaskSection(
+          key: ValueKey('mask-${p.locatorId}'),
+          placement: p,
+        ),
+
         // ---- 설정 그룹: MQTT 브로커 (좌표/자세/AoA와 같은 "설정" 성격) ----
         _MqttBrokerSection(
           key: ValueKey('mqtt-${p.locatorId}'),
@@ -400,6 +407,141 @@ Future<void> _restartAoaService(
       resp['ok'] == true
           ? 'AOA 서비스 재시작 완료'
           : '재시작 실패: ${resp['error'] ?? resp['rc'] ?? '알 수 없는 오류'}');
+}
+
+/// 설정 그룹: 반사면 마스크 — 도면 4면 중 벽·반사면 쪽을 골라 그 방향에서 오는
+/// 각도(반사파)를 카드의 각도 계산에서 제외한다 (azimuthMask · 로케이터 v1.0.29+).
+class _MaskSection extends StatefulWidget {
+  final PlacedLocator placement;
+
+  const _MaskSection({super.key, required this.placement});
+
+  @override
+  State<_MaskSection> createState() => _MaskSectionState();
+}
+
+class _MaskSectionState extends State<_MaskSection> {
+  bool _busy = false;
+  List<(double, double)>? _card; // 카드에 적용된 값 (불러온 경우)
+  bool _cardLoaded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final p = widget.placement;
+    final ip = _resolvePlacementIp(app, p);
+    final ranges = MaskFaces.localRanges(p.maskFaces, p.orientation);
+
+    return ExpansionTile(
+      initiallyExpanded: p.maskFaces.isNotEmpty,
+      title: Text(
+          '반사면 마스크${p.maskFaces.isEmpty ? '' : ' (${p.maskFaces.length}면)'}',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '로케이터 뒤나 옆이 벽·반사면이면 그 면을 고르세요. 그 방향에서 오는 각도(반사파)를 '
+          '카드가 계산에서 뺍니다. 방향은 도면 기준이며 현재 자세(orientation)로 변환됩니다 — '
+          '자세를 바꾸면 다시 적용하세요.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final f in MaskFaces.labels.keys)
+              FilterChip(
+                label: Text(MaskFaces.labels[f]!, style: const TextStyle(fontSize: 12)),
+                selected: p.maskFaces.contains(f),
+                onSelected: _busy
+                    ? null
+                    : (v) {
+                        if (v) {
+                          p.maskFaces.add(f);
+                        } else {
+                          p.maskFaces.remove(f);
+                        }
+                        app.placementEdited();
+                      },
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text('카드 azimuthMask: ${MaskFaces.describe(ranges)}',
+            style: const TextStyle(fontSize: 12)),
+        if (_cardLoaded)
+          Text('카드에 적용된 값: ${_card == null ? '없음' : MaskFaces.describe(_card!)}',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        const SizedBox(height: 8),
+        if (ip.isEmpty)
+          _noIpHint()
+        else
+          Row(children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _busy ? null : () => _apply(ip, ranges),
+                icon: _busy
+                    ? const SizedBox(
+                        width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.send, size: 16),
+                label: Text(ranges.isEmpty ? '카드 마스크 해제' : '카드에 적용'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed: _busy ? null : () => _load(ip),
+              child: const Text('카드 값'),
+            ),
+          ]),
+      ],
+    );
+  }
+
+  Future<void> _load(String ip) async {
+    setState(() => _busy = true);
+    try {
+      final v = await LocatorCardApi(ip).getAzimuthMask();
+      if (mounted) {
+        setState(() {
+          _card = v;
+          _cardLoaded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) _controlSnack(context, '카드 값 읽기 실패: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _apply(String ip, List<(double, double)> ranges) async {
+    final go = await _controlConfirm(
+      context,
+      '반사면 마스크 적용',
+      '${widget.placement.shortId} ($ip)에 azimuthMask ${MaskFaces.describe(ranges)}를 적용합니다.\n'
+          '카드의 AOA 서비스가 재시작되어 몇 초간 각도가 끊깁니다.',
+    );
+    if (go != true || !mounted) return;
+    final ok = await confirmSettingsPassword(context, '반사면 마스크 적용');
+    if (!ok || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final v = await LocatorCardApi(ip).setAzimuthMask(ranges);
+      if (!mounted) return;
+      setState(() {
+        _card = v;
+        _cardLoaded = true;
+      });
+      _controlSnack(context, '마스크 적용됨 · AOA 서비스 재시작 (${MaskFaces.describe(v ?? const [])})');
+    } catch (e) {
+      if (mounted) _controlSnack(context, '마스크 적용 실패: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 }
 
 /// 설정 그룹: 카드의 MQTT 브로커 설정 (UDP MQTT_SET).

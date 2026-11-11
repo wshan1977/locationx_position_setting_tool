@@ -21,6 +21,9 @@ class SessionData {
   final int extPort;
   final String extSiteId;
 
+  /// 등록된 장소·층 ([SiteBook] JSON). null = 장소 기능 이전 세션.
+  final Map<String, dynamic>? sites;
+
   SessionData({
     this.version = currentVersion,
     required this.project,
@@ -33,6 +36,7 @@ class SessionData {
     this.extHost = '',
     this.extPort = 1883,
     this.extSiteId = '',
+    this.sites,
   });
 
   factory SessionData.fromJson(Map<String, dynamic> json) => SessionData(
@@ -50,6 +54,9 @@ class SessionData {
         extHost: json['extHost']?.toString() ?? '',
         extPort: (json['extPort'] as num?)?.toInt() ?? 1883,
         extSiteId: json['extSiteId']?.toString() ?? '',
+        sites: json['sites'] is Map
+            ? Map<String, dynamic>.from(json['sites'] as Map)
+            : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -64,5 +71,6 @@ class SessionData {
         'extHost': extHost,
         'extPort': extPort,
         'extSiteId': extSiteId,
+        'sites': sites,
       };
 }

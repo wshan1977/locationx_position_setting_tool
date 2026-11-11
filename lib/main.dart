@@ -17,10 +17,12 @@ import 'state/app_state.dart';
 import 'state/external_state.dart';
 import 'state/mqtt_state.dart';
 import 'state/tag_state.dart';
+import 'tabs/calibration_page.dart';
 import 'tabs/data_monitor_tab.dart';
 import 'tabs/device_settings_tab.dart';
 import 'tabs/external_test_tab.dart';
 import 'tabs/mqtt_viewer_tab.dart';
+import 'tabs/sites_page.dart';
 import 'tabs/tag_settings_tab.dart';
 import 'widgets/hover_tip.dart';
 import 'widgets/tab_guide.dart';
@@ -171,6 +173,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// 상단 [설정] [관제] 두 탭 (175_BDCI 도구와 같은 구성). 각 탭 안은 왼쪽
+/// 세로 메뉴(NavigationRail)로 화면을 고른다. 탭·메뉴를 바꿔도 캔버스와
+/// 연결 상태가 유지되도록 모두 IndexedStack으로 둔다.
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
@@ -179,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 6, vsync: this);
+    _tabs = TabController(length: 2, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
@@ -203,55 +208,205 @@ class _HomeScreenState extends State<HomeScreen>
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Row(
               children: [
-                Expanded(
+                const SizedBox(width: 16),
+                const Text('LocationX',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 6),
+                Text('Manager',
+                    style: TextStyle(fontSize: 15, color: Colors.grey.shade700)),
+                if (_version.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Text('v$_version',
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ],
+                const SizedBox(width: 24),
+                SizedBox(
+                  width: 240,
                   child: TabBar(
                     controller: _tabs,
                     onTap: (_) => setState(() {}),
-                    // 현장 작업 순서대로 번호를 붙인다: Locator 준비 → Tag 준비 → 배치 →
-                    // 수신 점검 → 내부망 확인 → 외부망 확인
                     tabs: const [
-                      Tab(icon: Icon(Icons.tune, size: 18),
-                          text: '① Locator 설정'),
-                      Tab(icon: Icon(Icons.sell, size: 18),
-                          text: '② Tag 설정'),
-                      Tab(icon: Icon(Icons.map, size: 18),
-                          text: '③ 위치 설정 (서버)'),
-                      Tab(icon: Icon(Icons.monitor_heart, size: 18),
-                          text: '④ 데이터 수신'),
-                      Tab(icon: Icon(Icons.account_tree, size: 18),
-                          text: '⑤ MQTT 뷰어 (내부망)'),
-                      Tab(icon: Icon(Icons.cloud_sync, size: 18),
-                          text: '⑥ 외부망 테스트'),
+                      Tab(
+                          height: 48,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.tune, size: 17),
+                            SizedBox(width: 6),
+                            Text('설정'),
+                          ])),
+                      Tab(
+                          height: 48,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.monitor_heart_outlined, size: 17),
+                            SizedBox(width: 6),
+                            Text('관제'),
+                          ])),
                     ],
                   ),
                 ),
-                if (_version.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'v$_version',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                  ),
+                const Spacer(),
+                const _FloorSelector(),
+                const SizedBox(width: 12),
               ],
             ),
           ),
           Expanded(
-            // 탭 전환 시에도 캔버스/연결 상태가 유지되도록 IndexedStack 사용
             child: IndexedStack(
               index: _tabs.index,
               children: const [
-                DeviceSettingsTab(),
-                TagSettingsTab(),
-                PositionSettingScreen(),
-                DataMonitorTab(),
-                MqttViewerTab(),
-                ExternalTestTab(),
+                _RailShell(
+                  key: ValueKey('settings'),
+                  items: [
+                    _RailItem(Icons.apartment, '장소 · 층',
+                        '장소(건물·현장)와 층을 등록·삭제하고\n작업할 층을 고릅니다.'),
+                    _RailItem(Icons.settings_input_antenna, '① Locator 설정',
+                        'UDP로 서버·로케이터 카드를 검색하고\n브로커·재부팅·LED·업데이트를 합니다.'),
+                    _RailItem(Icons.sell, '② Tag 설정',
+                        'PC 블루투스로 태그를 검색하고\n상태 읽기·펌웨어 OTA를 합니다.'),
+                    _RailItem(Icons.map, '③ 위치 설정',
+                        '선택한 층의 도면에 로케이터를 배치하고\n서버로 전송합니다.'),
+                    _RailItem(Icons.tune, '④ 로케이터 보정',
+                        '기준점에 태그를 두고 각도를 모아\n설치 기울기·회전을 보정합니다.'),
+                  ],
+                  pages: [
+                    SitesPage(),
+                    DeviceSettingsTab(),
+                    TagSettingsTab(),
+                    PositionSettingScreen(),
+                    CalibrationPage(),
+                  ],
+                ),
+                _RailShell(
+                  key: ValueKey('monitor'),
+                  items: [
+                    _RailItem(Icons.monitor_heart, '데이터 수신',
+                        '로케이터별 angle·position 수신 상태를\n확인합니다.'),
+                    _RailItem(Icons.account_tree, 'MQTT 뷰어',
+                        '내부망 브로커의 토픽과\n3D 위치를 확인합니다.'),
+                    _RailItem(Icons.cloud_sync, '외부망',
+                        '외부 브로커로 중계된 상태·위치를 보고\n원격 제어합니다.'),
+                  ],
+                  pages: [
+                    DataMonitorTab(),
+                    MqttViewerTab(),
+                    ExternalTestTab(),
+                  ],
+                ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RailItem {
+  final IconData icon;
+  final String label;
+  final String tip;
+  const _RailItem(this.icon, this.label, this.tip);
+}
+
+/// 왼쪽 세로 메뉴 + 오른쪽 화면.
+class _RailShell extends StatefulWidget {
+  final List<_RailItem> items;
+  final List<Widget> pages;
+
+  const _RailShell({super.key, required this.items, required this.pages});
+
+  @override
+  State<_RailShell> createState() => _RailShellState();
+}
+
+class _RailShellState extends State<_RailShell> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        NavigationRail(
+          selectedIndex: _index,
+          onDestinationSelected: (i) => setState(() => _index = i),
+          labelType: NavigationRailLabelType.all,
+          minWidth: 96,
+          destinations: [
+            for (final it in widget.items)
+              NavigationRailDestination(
+                icon: Tooltip(message: it.tip, child: Icon(it.icon)),
+                label: Text(it.label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12)),
+              ),
+          ],
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: IndexedStack(index: _index, children: widget.pages),
+        ),
+      ],
+    );
+  }
+}
+
+/// 상단 우측: 지금 작업 중인 장소 › 층. 눌러서 다른 층으로 바로 전환.
+class _FloorSelector extends StatelessWidget {
+  const _FloorSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final book = app.sites;
+    return PopupMenuButton<(String, String)>(
+      tooltip: '작업할 장소 · 층 선택',
+      onSelected: (v) async {
+        final missing = await app.switchFloor(v.$1, v.$2);
+        if (missing != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  '도면 파일이 없습니다: $missing — [③ 위치 설정]에서 다시 불러오세요')));
+        }
+      },
+      itemBuilder: (_) => [
+        for (final s in book.sites) ...[
+          PopupMenuItem(
+            enabled: false,
+            height: 30,
+            child: Text(s.name,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+          for (final f in s.floors)
+            PopupMenuItem(
+              value: (s.id, f.id),
+              child: Row(children: [
+                Icon(
+                  s.id == book.activeSiteId && f.id == book.activeFloorId
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(f.name),
+              ]),
+            ),
+        ],
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.shade400),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.apartment, size: 16),
+          const SizedBox(width: 6),
+          Text('${app.activeSite.name} › ${app.activeFloor.name}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const Icon(Icons.arrow_drop_down, size: 20),
+        ]),
       ),
     );
   }
@@ -351,7 +506,7 @@ class _CanvasAreaState extends State<_CanvasArea> {
   }
 }
 
-/// 탭 3: AOA Locator 위치 설정 (기존 화면).
+/// 설정 › ③ 위치 설정: 선택한 층의 도면·로케이터 배치.
 class PositionSettingScreen extends StatelessWidget {
   const PositionSettingScreen({super.key});
 

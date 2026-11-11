@@ -472,7 +472,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                             '서버 카드가 배치(placements)를 중계하면 로케이터가,\n'
                             'position이 수신되면 태그가 표시됩니다.'
                         : '표시할 데이터가 없습니다.\n'
-                            '[위치 설정] 탭에서 도면과 로케이터를 배치하고,\n'
+                            '[설정 › ③ 위치 설정]에서 도면과 로케이터를 배치하고,\n'
                             '상단에서 MQTT 브로커에 연결하세요.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade600),

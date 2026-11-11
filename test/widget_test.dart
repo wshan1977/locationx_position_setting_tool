@@ -33,18 +33,30 @@ void main() {
     );
   }
 
-  testWidgets('6-tab layout renders', (WidgetTester tester) async {
+  testWidgets('settings/monitor tabs with rails render',
+      (WidgetTester tester) async {
     await pumpApp(tester);
 
+    expect(find.text('설정'), findsOneWidget);
+    expect(find.text('관제'), findsOneWidget);
+    expect(find.text('장소 · 층'), findsOneWidget);
     expect(find.text('① Locator 설정'), findsOneWidget);
     expect(find.text('② Tag 설정'), findsOneWidget);
-    expect(find.text('③ 위치 설정 (서버)'), findsOneWidget);
-    expect(find.text('④ 데이터 수신'), findsOneWidget);
-    expect(find.text('⑤ MQTT 뷰어 (내부망)'), findsOneWidget);
-    expect(find.text('⑥ 외부망 테스트'), findsOneWidget);
+    expect(find.text('③ 위치 설정'), findsOneWidget);
 
-    // 초기 탭: Locator 설정
+    // 첫 화면: 장소 · 층 (기본 장소 › 1층)
+    expect(find.text('장소 추가'), findsOneWidget);
+    expect(find.text('기본 장소 › 1층'), findsOneWidget);
+
+    await tester.tap(find.text('① Locator 설정'));
+    await tester.pumpAndSettle();
     expect(find.text('Locator 검색 (UDP)'), findsOneWidget);
+
+    await tester.tap(find.text('관제'));
+    await tester.pumpAndSettle();
+    expect(find.text('데이터 수신'), findsOneWidget);
+    expect(find.text('MQTT 뷰어'), findsOneWidget);
+    expect(find.text('외부망'), findsOneWidget);
   });
 
   testWidgets('tag settings tab shows BLE scan and empty list',
@@ -58,11 +70,28 @@ void main() {
     expect(find.text('좌측에서 Tag를 선택하세요.'), findsOneWidget);
   });
 
+  testWidgets('calibration page shows reference points and compute button',
+      (WidgetTester tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('④ 로케이터 보정'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('왼쪽 도면에서 태그를 놓은 위치를 클릭하세요.'), findsOneWidget);
+    expect(find.text('보정 계산 (수집된 기준점 0곳)'), findsOneWidget);
+    expect(find.text('MQTT 미연결'), findsOneWidget);
+
+    // 도면 클릭 → 기준점 1 추가
+    await tester.tapAt(const Offset(500, 600));
+    await tester.pumpAndSettle();
+    expect(find.text('기준점 (1)'), findsOneWidget);
+  });
+
   testWidgets('position setting tab keeps 3-pane layout',
       (WidgetTester tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.text('③ 위치 설정 (서버)'));
+    await tester.tap(find.text('③ 위치 설정'));
     await tester.pumpAndSettle();
 
     expect(find.text('전역 Positioning 설정'), findsOneWidget);

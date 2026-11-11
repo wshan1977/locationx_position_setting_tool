@@ -91,6 +91,11 @@ class MqttState extends ChangeNotifier {
   /// 토픽 → 통계.
   final Map<String, TopicStat> topics = {};
 
+  final _records = StreamController<MqttMessageRecord>.broadcast();
+
+  /// 수신 메시지 실시간 스트림 (일시정지와 무관 · 로케이터 보정 수집용).
+  Stream<MqttMessageRecord> get records => _records.stream;
+
   bool _dirty = false;
 
   bool get isConnected => status == MqttStatus.connected;
@@ -219,7 +224,6 @@ class MqttState extends ChangeNotifier {
   }
 
   void _onMessages(List<MqttReceivedMessage<MqttMessage>> events) {
-    if (paused) return;
     final now = DateTime.now();
     for (final e in events) {
       final pub = e.payload;
@@ -241,6 +245,8 @@ class MqttState extends ChangeNotifier {
         ts: now,
         retained: pub.header?.retain ?? false,
       );
+      if (_records.hasListener) _records.add(rec);
+      if (paused) continue;
       log.addFirst(rec);
       while (log.length > maxLogEntries) {
         log.removeLast();

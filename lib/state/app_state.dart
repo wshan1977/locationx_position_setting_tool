@@ -13,6 +13,8 @@ import '../models/placement.dart';
 import '../models/positioning_config.dart';
 import '../models/project.dart';
 import '../models/session.dart';
+import '../models/site.dart';
+import '../models/vec3.dart';
 import '../services/discovery_service.dart';
 import '../services/project_storage.dart';
 
@@ -61,6 +63,11 @@ class AppState extends ChangeNotifier {
   // ---- 프로젝트 ----
   String? projectPath;
   bool dirty = false;
+
+  // ---- 장소 · 층 ----
+  /// 등록된 장소/층. 활성 층의 내용은 위 필드(도면·배치·서버 IP…)가 원본이고,
+  /// 층을 바꿀 때 [FloorEntry.project]로 옮겨 적는다.
+  SiteBook sites = SiteBook.initial();
 
   // ---- 실행 취소 (위치 설정 편집) ----
   final List<String> _undoStack = [];
@@ -392,6 +399,21 @@ class AppState extends ChangeNotifier {
     _markDirty();
   }
 
+  /// 로케이터 보정 결과 적용: locatorId → orientation (Ctrl+Z로 복귀 가능).
+  /// 반환: 실제로 바뀐 로케이터 수.
+  int applyOrientations(Map<String, Vec3> orientations) {
+    final targets = placements
+        .where((p) => orientations.containsKey(p.locatorId))
+        .toList();
+    if (targets.isEmpty) return 0;
+    _pushUndo();
+    for (final p in targets) {
+      p.orientation = orientations[p.locatorId]!.copy();
+    }
+    _markDirty();
+    return targets.length;
+  }
+
   /// 왼쪽 패널 폼 편집 후 호출 (필드는 이미 객체에 반영됨).
   void placementEdited() => _markDirty();
 
@@ -417,14 +439,24 @@ class AppState extends ChangeNotifier {
       locationFilteringWeight: fetched.locationFilteringWeight,
       numberOfSequenceIds: fetched.numberOfSequenceIds,
       maximumSequenceIdDiffs: fetched.maximumSequenceIdDiffs,
+      targetHeight: fetched.targetHeight,
+      angleOutlierDeg: fetched.angleOutlierDeg,
+      rssiDistanceRatio: fetched.rssiDistanceRatio,
+      angleSpreadDeviation: fetched.angleSpreadDeviation,
       extras: Map<String, dynamic>.from(fetched.extras),
     );
+    // 반사면 마스크는 서버 positioning이 쓰지 않는 도구 전용 값이라, 서버에
+    // 없으면(이전 버전 도구로 전송된 설정) 지금 선택을 유지한다.
+    final previousMasks = {
+      for (final p in placements) p.locatorId: Set<String>.from(p.maskFaces),
+    };
     placements.clear();
     for (final l in fetched.locators) {
       // 검색된 장치와 매칭되면 이름/IP를 채운다 (이후 검색 시에도 자동 동기화)
       final live = devices
           .where((d) => !d.isServer && d.hasValidMac && d.locatorId == l.id)
           .firstOrNull;
+      final serverMasks = l.extras['maskFaces'];
       placements.add(PlacedLocator(
         locatorId: l.id,
         deviceName: live?.device ?? '',
@@ -432,6 +464,9 @@ class AppState extends ChangeNotifier {
         coordinate: l.coordinate.copy(),
         orientation: l.orientation.copy(),
         config: Map<String, dynamic>.from(l.config),
+        maskFaces: serverMasks is List
+            ? {for (final f in serverMasks) f.toString()}
+            : previousMasks[l.id],
       ));
     }
     selectedLocatorId = null;
@@ -454,6 +489,10 @@ class AppState extends ChangeNotifier {
       locationFilteringWeight: globals.locationFilteringWeight,
       numberOfSequenceIds: globals.numberOfSequenceIds,
       maximumSequenceIdDiffs: globals.maximumSequenceIdDiffs,
+      targetHeight: globals.targetHeight,
+      angleOutlierDeg: globals.angleOutlierDeg,
+      rssiDistanceRatio: globals.rssiDistanceRatio,
+      angleSpreadDeviation: globals.angleSpreadDeviation,
       locators: [for (final p in placements) p.toLocatorEntry()],
       extras: Map<String, dynamic>.from(fetched.extras),
     );
@@ -545,10 +584,128 @@ class AppState extends ChangeNotifier {
   }
 
   /// 세션(마지막 작업 상태) 복원. 앱 시작 시 호출된다.
+  /// 장소 기능 이전 세션은 기존 작업을 "기본 장소 › 1층"으로 옮긴다.
   Future<void> restoreSession(SessionData session) async {
+    final book = session.sites;
+    sites = book == null
+        ? SiteBook.initial(copyProject(session.project))
+        : SiteBook.fromJson(book);
+    // 활성 층은 세션의 project가 최신 (층 목록 안의 사본은 전환 시점 기준)
     await applyProject(session.project, path: session.projectPath);
     dirty = session.dirty;
     notifyListeners();
+  }
+
+  // =========================================================
+  // 장소 · 층
+  // =========================================================
+  SiteEntry get activeSite => sites.activeSite;
+  FloorEntry get activeFloor => sites.activeFloor;
+
+  /// 현재 편집 상태를 활성 층에 옮겨 적는다 (깊은 복사).
+  void _stashActiveFloor() {
+    activeFloor.project = copyProject(toProject());
+  }
+
+  /// 저장용 장소 목록 JSON: 활성 층은 현재 편집 상태로 채운다.
+  Map<String, dynamic> siteBookJson() {
+    final j = sites.toJson();
+    for (final s in j['sites'] as List) {
+      if (s['id'] != sites.activeSiteId) continue;
+      for (final f in s['floors'] as List) {
+        if (f['id'] == sites.activeFloorId) f['project'] = toProject().toJson();
+      }
+    }
+    return j;
+  }
+
+  /// 다른 장소/층으로 전환. 반환: 그 층의 없어진 도면 경로 (정상이면 null).
+  Future<String?> switchFloor(String siteId, String floorId) async {
+    if (siteId == sites.activeSiteId && floorId == sites.activeFloorId) {
+      return null;
+    }
+    final site = sites.siteById(siteId);
+    final floor = site?.floorById(floorId);
+    if (site == null || floor == null) return null;
+    _stashActiveFloor();
+    final wasDirty = dirty;
+    sites
+      ..activeSiteId = siteId
+      ..activeFloorId = floorId;
+    canvasMode = CanvasMode.normal;
+    final missing = await applyProject(copyProject(floor.project));
+    // 층 전환 자체는 저장할 변경이 아니지만, 이전 층의 미저장 표시는 유지
+    dirty = wasDirty;
+    notifyListeners();
+    return missing;
+  }
+
+  /// 새 장소 (1층 포함) 를 만들고 그 장소로 전환한다.
+  Future<void> addSite(String name) async {
+    final floor = FloorEntry(
+        id: newId('f'), name: '1층', project: ProjectFile(serverIp: ''));
+    final site = SiteEntry(id: newId('s'), name: name, floors: [floor]);
+    sites.sites.add(site);
+    await switchFloor(site.id, floor.id);
+  }
+
+  void renameSite(String siteId, String name) {
+    sites.siteById(siteId)?.name = name;
+    notifyListeners();
+  }
+
+  /// 장소 삭제 (마지막 1개는 삭제 불가). 활성 장소면 남은 첫 장소로 전환.
+  Future<bool> deleteSite(String siteId) async {
+    if (sites.sites.length <= 1) return false;
+    final wasActive = siteId == sites.activeSiteId;
+    if (wasActive) {
+      final next = sites.sites.firstWhere((s) => s.id != siteId);
+      await switchFloor(next.id, next.floors.first.id);
+    }
+    sites.sites.removeWhere((s) => s.id == siteId);
+    notifyListeners();
+    return true;
+  }
+
+  /// [siteId] 장소에 층을 추가하고 그 층으로 전환한다.
+  /// 서버 IP와 전역 positioning 설정은 현재 층 값을 이어받는다.
+  Future<void> addFloor(String siteId, String name) async {
+    final site = sites.siteById(siteId);
+    if (site == null) return;
+    final base = copyProject(toProject());
+    final floor = FloorEntry(
+      id: newId('f'),
+      name: name,
+      project: ProjectFile(serverIp: base.serverIp, globals: base.globals),
+    );
+    site.floors.add(floor);
+    await switchFloor(site.id, floor.id);
+  }
+
+  void renameFloor(String siteId, String floorId, String name) {
+    sites.siteById(siteId)?.floorById(floorId)?.name = name;
+    notifyListeners();
+  }
+
+  /// 층 삭제 (장소의 마지막 층은 삭제 불가). 활성 층이면 남은 첫 층으로 전환.
+  Future<bool> deleteFloor(String siteId, String floorId) async {
+    final site = sites.siteById(siteId);
+    if (site == null || site.floors.length <= 1) return false;
+    if (siteId == sites.activeSiteId && floorId == sites.activeFloorId) {
+      final next = site.floors.firstWhere((f) => f.id != floorId);
+      await switchFloor(site.id, next.id);
+    }
+    site.floors.removeWhere((f) => f.id == floorId);
+    notifyListeners();
+    return true;
+  }
+
+  /// 목록 표시용: 층의 최신 내용 (활성 층은 현재 편집 상태).
+  ProjectFile floorProject(String siteId, String floorId) {
+    if (siteId == sites.activeSiteId && floorId == sites.activeFloorId) {
+      return toProject();
+    }
+    return sites.siteById(siteId)?.floorById(floorId)?.project ?? ProjectFile();
   }
 
   void newProject() {

@@ -6,7 +6,7 @@ import '../state/mqtt_state.dart';
 import '../widgets/mqtt_connect_bar.dart';
 import '../widgets/tab_guide.dart';
 
-/// 탭 4: 데이터 수신 확인.
+/// 관제 › 데이터 수신 확인.
 /// MQTT 브로커에 접속해 silabs/aoa/angle·position 토픽의 수신 현황을
 /// 로케이터/태그별로 보여준다. 캔버스에 배치된 로케이터 중 미수신인
 /// 카드도 표시한다.

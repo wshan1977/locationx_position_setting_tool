@@ -12,7 +12,7 @@ import '../widgets/update_flow.dart';
 import 'mqtt_viewer_tab.dart' show MqttTopicExplorer;
 import 'position_live_view.dart';
 
-/// 탭 6: 외부망 테스트.
+/// 관제 › 외부망 테스트.
 /// 서버 카드의 cloud-agent가 외부 브로커(broker.hivemq.com 등)로 중계한
 /// `locationx/<siteId>/#` 토픽에 접속해:
 /// - Locator 목록: 전 Locator 상태(온도·서비스·연결) + 리부트/서비스 재시작/LED 식별
@@ -645,7 +645,7 @@ class _CloudConfigDialogState extends State<_CloudConfigDialog> {
       content: SizedBox(
         width: 460,
         child: serverIp.isEmpty
-            ? const Text('서버 카드 IP가 없습니다 — 위치 설정 탭에서 [Locator 검색]을 먼저 하세요',
+            ? const Text('서버 카드 IP가 없습니다 — [설정 › ① Locator 설정]에서 [Locator 검색]을 먼저 하세요',
                 style: TextStyle(fontSize: 13))
             : SingleChildScrollView(
                 child: CloudConfigForm(

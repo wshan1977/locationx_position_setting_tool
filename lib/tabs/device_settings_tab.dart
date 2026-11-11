@@ -15,7 +15,7 @@ import '../widgets/password_gate.dart';
 import '../widgets/tab_guide.dart';
 import '../state/app_state.dart';
 
-/// 탭 1: AOA Locator 설정.
+/// 설정 › ① Locator 설정.
 /// 좌측 카드 목록에서 Locator를 선택하면 우측에서
 /// MQTT 브로커 설정(UDP MQTT_SET) / 서비스 재시작 / 재부팅 / LED 식별을 수행한다.
 class DeviceSettingsTab extends StatefulWidget {
@@ -335,7 +335,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
         _sectionCard(
           Icons.cloud_sync,
           '외부망 MQTT 브로커 (중계 · cloud-agent)',
-          '계산된 position·Locator 상태를 인터넷 브로커로 중계 — [⑥ 외부망 테스트] 탭에서 사용',
+          '계산된 position·Locator 상태를 인터넷 브로커로 중계 — [관제 › 외부망]에서 사용',
           CloudConfigForm(
             key: ValueKey('server-cloud-${d.dedupeKey}'),
             serverIp: d.ip,
@@ -444,7 +444,7 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           '이 카드에서 mosquitto MQTT 브로커(기본 포트 1883)와 positioning 서비스가 구동됩니다.\n'
           'positioning 서비스는 내부망 브로커에서 angle을 수신하고 position을 발행하며, '
           '외부망 중계(cloud-agent)는 그 결과만 인터넷 브로커로 내보냅니다.\n'
-          '위치 설정은 [③ 위치 설정] 탭에서, 수신 확인은 [④ 데이터 수신]·[⑤ MQTT 뷰어] 탭에서 합니다.',
+          '위치 설정은 [설정 › ③ 위치 설정]에서, 수신 확인은 [관제 › 데이터 수신]·[관제 › MQTT 뷰어]에서 합니다.',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
       ],

@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import '../models/discovered_device.dart';
 import '../models/placement.dart';
 import '../services/locator_images.dart';
+import '../services/mask_faces.dart';
 import '../state/app_state.dart';
 import 'grid_painter.dart';
 import 'locator_marker.dart';
@@ -98,6 +99,15 @@ class FloorCanvas extends StatelessWidget {
                           child: IgnorePointer(
                             child: CustomPaint(
                               painter: _LocatorPhotoPainter(app: app),
+                            ),
+                          ),
+                        ),
+                      // 반사면 마스크 부채꼴 (마커 아래)
+                      if (app.placements.any((p) => p.maskFaces.isNotEmpty))
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _MaskFacePainter(app: app),
                             ),
                           ),
                         ),
@@ -293,4 +303,56 @@ class _LocatorPhotoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LocatorPhotoPainter old) => true;
+}
+
+/// 반사면 마스크로 고른 면(도면 방향 ±80°)을 로케이터 주변에 빨간 부채꼴로 그린다.
+class _MaskFacePainter extends CustomPainter {
+  final AppState app;
+  _MaskFacePainter({required this.app});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = app.transform;
+    final fill = Paint()..color = Colors.red.withValues(alpha: 0.16);
+    final edge = Paint()
+      ..color = Colors.red.withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (final p in app.placements) {
+      if (p.maskFaces.isEmpty) continue;
+      final c = Offset(p.coordinate.x, p.coordinate.y);
+      final cs = t.worldToScreen(c);
+      final radius = (1.2 / t.metersPerPixel * t.zoom).clamp(28.0, 140.0);
+      for (final f in p.maskFaces) {
+        final mid = MaskFaces.faces[f];
+        if (mid == null) continue;
+        // 월드 방위 → 화면 각도 (화면 y축은 도면 변환에 따라 뒤집힐 수 있음)
+        double screenAngle(double worldDeg) {
+          final r = worldDeg * math.pi / 180;
+          final s = t.worldToScreen(c + Offset(math.cos(r), math.sin(r)));
+          return math.atan2(s.dy - cs.dy, s.dx - cs.dx);
+        }
+
+        final a0 = screenAngle(mid - MaskFaces.halfWidth);
+        final a1 = screenAngle(mid + MaskFaces.halfWidth);
+        // a0 → a1 호 중 중앙 방향(am)을 지나는 쪽으로 그린다
+        double norm(double a) => (a + 3 * math.pi) % (2 * math.pi) - math.pi;
+        final am = screenAngle(mid);
+        var sweep = norm(a1 - a0);
+        final d = norm(am - a0);
+        final onArc = sweep >= 0 ? (d >= 0 && d <= sweep) : (d <= 0 && d >= sweep);
+        if (!onArc) sweep = sweep >= 0 ? sweep - 2 * math.pi : sweep + 2 * math.pi;
+        final rect = Rect.fromCircle(center: cs, radius: radius);
+        final path = Path()
+          ..moveTo(cs.dx, cs.dy)
+          ..arcTo(rect, a0, sweep, false)
+          ..close();
+        canvas.drawPath(path, fill);
+        canvas.drawPath(path, edge);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MaskFacePainter old) => true;
 }

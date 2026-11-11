@@ -62,6 +62,13 @@ class TagState extends ChangeNotifier {
   static const otaSvc = '1d14d6ee-fd63-4fa1-bfa4-8f47b42119f0';
   static const otaCtrl = 'f7bf3564-fb6d-4e53-88a4-5e37e0326063';
   static const otaData = '984227f3-34fc-4045-a5d0-2c581f81a153';
+  // SDK Constant Tone Extension 서비스 (gatt_service_cte_adv): CTE 확장 광고
+  // 간격 (uint16, 0.625 ms 단위, 최소 32 = 20 ms). 로케이터가 위치 계산에 쓰는
+  // 송신 주기 — 태그 FW 1.2.0+는 NVM3에 저장해 재부팅 후에도 유지한다.
+  static final cteSvc = _sig('184a');
+  static final cteIntervalChr = _sig('2bb1');
+  static const cteIntervalMinMs = 20;
+  static const cteIntervalMaxMs = 10000;
 
   /// 태그 펌웨어의 GAP Device Name (gatt_configuration.btconf).
   static const tagName = 'assettag';
@@ -320,6 +327,25 @@ class TagState extends ChangeNotifier {
     }
   }
 
+  /// CTE 송신 주기(ms) 설정. 0.625 ms 단위로 반올림해 쓰고, 실제 적용된 ms를
+  /// 돌려준다. 태그에 CTE 서비스가 없으면 작업자용 메시지로 throw.
+  Future<double> setCteIntervalMs(String mac, int ms) async {
+    final units = (ms / 0.625).round().clamp(32, 0xFFFF);
+    _setBusy(mac.toUpperCase());
+    try {
+      final s = await _connect(mac);
+      if (!_has(s, cteSvc, cteIntervalChr)) {
+        throw '이 태그에는 CTE 송신 주기 설정(0x184A/0x2BB1)이 없습니다';
+      }
+      await UniversalBle.write(_id(mac), cteSvc, cteIntervalChr,
+          Uint8List.fromList([units & 0xFF, units >> 8]));
+      return units * 0.625;
+    } finally {
+      await _disconnect(mac);
+      _setBusy(null);
+    }
+  }
+
   /// OTA data 특성에 쓸 .gbl 조각.
   static List<Uint8List> chunks(Uint8List gbl, int size) => [
         for (var i = 0; i < gbl.length; i += size)
@@ -438,6 +464,18 @@ class TagState extends ChangeNotifier {
       if (ota != up) await _disconnect(up);
       _setBusy(null);
     }
+  }
+
+  /// 점 표기 버전 비교 ("1.1.0" vs "1.2.0"); 숫자가 아닌 부분은 0. <0, 0, >0.
+  static int compareVersion(String a, String b) {
+    List<int> p(String v) =>
+        v.split('.').map((s) => int.tryParse(s.trim()) ?? 0).toList();
+    final x = p(a), y = p(b);
+    for (var i = 0; i < 3; i++) {
+      final d = (i < x.length ? x[i] : 0) - (i < y.length ? y[i] : 0);
+      if (d != 0) return d;
+    }
+    return 0;
   }
 
   /// 파일 이름 locationx_tag_v1.2.3.gbl 에서 "1.2.3" (없으면 '').

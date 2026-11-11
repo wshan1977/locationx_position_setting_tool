@@ -106,3 +106,18 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Release 폴더의 exe 이름에 버전을 붙인다 (예: locationx_position_setting_tool_v1.12.0.exe).
+# Release 설치에서만 이름을 바꾸고(이전 버전 exe는 삭제) Debug/Profile은 그대로 둔다 —
+# flutter run이 원래 이름의 exe를 실행하기 때문.
+set(VERSIONED_EXE "${BINARY_NAME}_v${FLUTTER_VERSION_MAJOR}.${FLUTTER_VERSION_MINOR}.${FLUTTER_VERSION_PATCH}.exe")
+install(CODE "
+  if(\"\${CMAKE_INSTALL_CONFIG_NAME}\" STREQUAL \"Release\")
+    file(GLOB _old \"${CMAKE_INSTALL_PREFIX}/${BINARY_NAME}_v*.exe\")
+    if(_old)
+      file(REMOVE \${_old})
+    endif()
+    file(RENAME \"${CMAKE_INSTALL_PREFIX}/${BINARY_NAME}.exe\"
+                \"${CMAKE_INSTALL_PREFIX}/${VERSIONED_EXE}\")
+  endif()
+  " COMPONENT Runtime)

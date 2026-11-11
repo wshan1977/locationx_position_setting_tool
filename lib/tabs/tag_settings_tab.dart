@@ -12,7 +12,7 @@ import '../state/tag_state.dart';
 import '../widgets/hover_tip.dart';
 import '../widgets/tab_guide.dart';
 
-/// 탭 2: AOA Tag 설정.
+/// 설정 › ② Tag 설정.
 /// PC 블루투스로 주변 태그를 검색하고, 선택한 태그의 Device Information을
 /// 읽거나 .gbl 펌웨어로 OTA 업데이트한다 (TagState 참고).
 class TagSettingsTab extends StatefulWidget {
@@ -37,6 +37,16 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
   String? _relSel;
   bool _relLoading = false;
   bool _relDownloading = false;
+
+  // CTE 송신 주기 (ms) 입력 · 태그별 마지막 적용값
+  final _intervalCtrl = TextEditingController(text: '100');
+  final _appliedInterval = <String, double>{};
+
+  @override
+  void dispose() {
+    _intervalCtrl.dispose();
+    super.dispose();
+  }
 
   // OTA 진행
   OtaProgress? _progress;
@@ -254,6 +264,15 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
             ),
             const SizedBox(height: 14),
             _sectionCard(
+              Icons.battery_saver,
+              '송신 주기 (저전력)',
+              '로케이터가 위치 계산에 쓰는 CTE 신호를 얼마나 자주 보낼지 정합니다. '
+                  '길게 하면 배터리가 오래 가지만 위치 갱신이 느려집니다. '
+                  '태그 FW 1.2.0 이상은 재부팅 후에도 유지됩니다',
+              _intervalEditor(tags, t, info, busy),
+            ),
+            const SizedBox(height: 14),
+            _sectionCard(
               Icons.system_update_alt,
               '펌웨어 OTA 업데이트',
               'Silicon Labs AppLoader OTA — 태그 펌웨어에 in_place_ota_dfu가 있어야 합니다 '
@@ -429,6 +448,85 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
         ],
       ),
     );
+  }
+
+  /// CTE 송신 주기 편집: ms 입력 + 프리셋 + [태그에 적용].
+  Widget _intervalEditor(TagState tags, BleTag t, BleTagInfo? info, bool busy) {
+    const presets = [(25, '25 ms · 초당 40회 (기본에 가까움)'), (100, '100 ms · 초당 10회'),
+      (250, '250 ms · 초당 4회'), (1000, '1 s · 초당 1회 (저전력)')];
+    final applied = _appliedInterval[t.mac];
+    final oldFw = info != null && TagState.compareVersion(info.fw, '1.2.0') < 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 120,
+              child: TextField(
+                controller: _intervalCtrl,
+                enabled: !busy,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                    labelText: '송신 주기 (ms)', isDense: true, suffixText: 'ms'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            FilledButton.icon(
+              onPressed: busy || t.appLoader ? null : () => _applyInterval(tags, t),
+              icon: tags.busyMac == t.mac && _progress == null
+                  ? const SizedBox(
+                      width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.send, size: 18),
+              label: const Text('태그에 적용'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final (ms, label) in presets)
+              ActionChip(
+                label: Text(label, style: const TextStyle(fontSize: 11.5)),
+                onPressed: busy ? null : () => setState(() => _intervalCtrl.text = '$ms'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${TagState.cteIntervalMinMs}~${TagState.cteIntervalMaxMs} ms · 0.625 ms 단위로 반올림'
+          '${applied == null ? '' : ' · 마지막 적용: ${applied.toStringAsFixed(applied % 1 == 0 ? 0 : 3)} ms'}',
+          style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+        ),
+        if (oldFw)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '이 태그는 FW ${info.fw} — 적용은 되지만 재부팅하면 기본 주기로 돌아갑니다 '
+              '(FW 1.2.0 이상으로 OTA 업데이트하면 유지됨)',
+              style: TextStyle(fontSize: 11.5, color: Colors.orange.shade800),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _applyInterval(TagState tags, BleTag t) async {
+    final ms = int.tryParse(_intervalCtrl.text.trim());
+    if (ms == null || ms < TagState.cteIntervalMinMs || ms > TagState.cteIntervalMaxMs) {
+      _snack('송신 주기는 ${TagState.cteIntervalMinMs}~${TagState.cteIntervalMaxMs} ms로 입력하세요');
+      return;
+    }
+    try {
+      final actual = await tags.setCteIntervalMs(t.mac, ms);
+      if (!mounted) return;
+      setState(() => _appliedInterval[t.mac] = actual);
+      _snack('송신 주기 ${actual.toStringAsFixed(actual % 1 == 0 ? 0 : 3)} ms 적용됨');
+    } catch (e) {
+      _snack('송신 주기 적용 실패: $e');
+    }
   }
 
   Widget _sectionCard(

@@ -50,3 +50,4 @@ image/*.stl
 
 # vendored plugin build leftovers
 third_party/universal_ble/android/build/
+third_party/universal_ble/android/.gradle/

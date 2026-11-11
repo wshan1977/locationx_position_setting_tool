@@ -112,6 +112,117 @@ class GlobalSettingsForm extends StatelessWidget {
         const SizedBox(height: 12),
 
         _cfgTip(
+          '2D 모드에서 태그 높이(m)를 고정합니다 (서버 v2.4.0 이상).\n'
+          '고정하지 않으면 높이가 흔들리면서 x/y 위치까지 밀립니다.\n'
+          '태그를 바닥에 두면 0, 목에 걸거나 손에 들면 약 1.0~1.3.',
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('태그 높이 고정 (2D)', style: TextStyle(fontSize: 13)),
+            subtitle: g.estimationModeLocation.contains('TWO_DIM')
+                ? null
+                : const Text('3D 모드에서는 쓰이지 않습니다',
+                    style: TextStyle(fontSize: 11)),
+            value: g.targetHeight != null,
+            onChanged: (v) {
+              g.targetHeight = v ? 0.0 : null;
+              app.globalsEdited();
+            },
+          ),
+        ),
+        if (g.targetHeight != null)
+          NumField(
+            label: 'targetHeight (m)',
+            value: g.targetHeight!,
+            onChanged: (v) {
+              g.targetHeight = v;
+              app.globalsEdited();
+            },
+          ),
+        const SizedBox(height: 12),
+
+        _cfgTip(
+          '로케이터 각도가 갑자기 튀는 값을 위치 계산 전에 버립니다 (서버 v2.5.0 이상).\n'
+          '로케이터·태그별 최근 9개 각도의 중앙값에서 이 각도(°)보다 크게 벗어나면 버리고,\n'
+          '같은 쪽으로 3번 연속 벗어나면 실제 이동으로 보고 받아들입니다. 권장 20°.',
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('각도 튐 제거', style: TextStyle(fontSize: 13)),
+            value: g.angleOutlierDeg != null,
+            onChanged: (v) {
+              g.angleOutlierDeg = v ? 20.0 : null;
+              app.globalsEdited();
+            },
+          ),
+        ),
+        if (g.angleOutlierDeg != null)
+          NumField(
+            label: 'angleOutlierDeg (°)',
+            value: g.angleOutlierDeg!,
+            fractionDigits: 0,
+            onChanged: (v) {
+              g.angleOutlierDeg = v;
+              app.globalsEdited();
+            },
+          ),
+        const SizedBox(height: 12),
+
+        _cfgTip(
+          '신호가 약한(멀거나 가려진) 로케이터의 각도를 위치 계산에서 뺍니다 (서버 v2.6.0 이상).\n'
+          '같은 순간 RSSI 거리가 가장 가까운 로케이터의 이 배수보다 먼 로케이터를 제외하고,\n'
+          '최소 3대는 남깁니다. 권장 2.5 (실측: 오차 0.30 → 0.04 m).',
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('약한 신호 로케이터 제외', style: TextStyle(fontSize: 13)),
+            value: g.rssiDistanceRatio != null,
+            onChanged: (v) {
+              g.rssiDistanceRatio = v ? 2.5 : null;
+              app.globalsEdited();
+            },
+          ),
+        ),
+        if (g.rssiDistanceRatio != null)
+          NumField(
+            label: 'rssiDistanceRatio (배)',
+            value: g.rssiDistanceRatio!,
+            fractionDigits: 1,
+            onChanged: (v) {
+              g.rssiDistanceRatio = v;
+              app.globalsEdited();
+            },
+          ),
+        const SizedBox(height: 12),
+
+        _cfgTip(
+          '각도가 흔들리는 로케이터를 덜 믿도록, 최근 각도의 실제 흩어짐을 계산 가중치에\n'
+          '반영합니다 (서버 v2.6.0 이상). 위치 흔들림은 줄지만, 안정적이면서 틀린 로케이터를\n'
+          '더 믿게 되어 편향이 커질 수 있습니다 (실측: 흔들림 0.11 → 0.04 m, 오차 0.30 → 0.37 m).',
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('흔들림 기반 가중치', style: TextStyle(fontSize: 13)),
+            value: g.angleSpreadDeviation != null,
+            onChanged: (v) {
+              g.angleSpreadDeviation = v ? 1.0 : null;
+              app.globalsEdited();
+            },
+          ),
+        ),
+        if (g.angleSpreadDeviation != null)
+          NumField(
+            label: 'angleSpreadDeviation (계수)',
+            value: g.angleSpreadDeviation!,
+            fractionDigits: 1,
+            onChanged: (v) {
+              g.angleSpreadDeviation = v;
+              app.globalsEdited();
+            },
+          ),
+        const SizedBox(height: 12),
+
+        _cfgTip(
           '위치 필터링(스무딩) 사용 여부입니다.\n'
           '켜면 위치 좌표의 떨림이 줄어 궤적이 부드러워지지만, 태그가 움직일 때 실제 위치를 늦게 따라갑니다.',
           SwitchListTile(

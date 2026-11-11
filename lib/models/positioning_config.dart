@@ -80,6 +80,21 @@ class PositioningConfig {
   double locationFilteringWeight;
   int numberOfSequenceIds;
   int maximumSequenceIdDiffs;
+
+  /// 2D 모드 태그 높이 고정 (m). null = 고정 안 함. 서버 v2.4.0+ positioning이
+  /// RTL TARGET_HEIGHT로 설정한다 (2D estimation mode에서만 의미 있음).
+  double? targetHeight;
+
+  /// 각도 튐 제거 임계값 (°). null = 끔. 서버 v2.5.0+ positioning이 로케이터·태그별
+  /// 최근 9개 중앙값에서 이만큼 넘게 벗어난 단발 각도를 버린다 (권장 20).
+  double? angleOutlierDeg;
+
+  /// 약한 신호 로케이터 제외 배수. null = 끔. 서버 v2.6.0+: 같은 순간 RSSI 거리가
+  /// 가장 가까운 로케이터의 이 배수보다 먼 로케이터를 제외 (권장 2.5).
+  double? rssiDistanceRatio;
+
+  /// 흔들림 기반 각도 stdev 계수. null = 끔. 서버 v2.6.0+ (흔들림↓ · 편향 소폭↑).
+  double? angleSpreadDeviation;
   List<LocatorEntry> locators;
   final Map<String, dynamic> extras;
 
@@ -94,6 +109,10 @@ class PositioningConfig {
     this.locationFilteringWeight = 0.1,
     this.numberOfSequenceIds = 6,
     this.maximumSequenceIdDiffs = 20,
+    this.targetHeight,
+    this.angleOutlierDeg,
+    this.rssiDistanceRatio,
+    this.angleSpreadDeviation,
     List<LocatorEntry>? locators,
     Map<String, dynamic>? extras,
   })  : locators = locators ?? [],
@@ -109,6 +128,10 @@ class PositioningConfig {
     'locationFilteringWeight',
     'numberOfSequenceIds',
     'maximumSequenceIdDiffs',
+    'targetHeight',
+    'angleOutlierDeg',
+    'rssiDistanceRatio',
+    'angleSpreadDeviation',
     'locators',
   };
 
@@ -134,6 +157,10 @@ class PositioningConfig {
       maximumSequenceIdDiffs:
           (json['maximumSequenceIdDiffs'] as num?)?.toInt() ??
               def.maximumSequenceIdDiffs,
+      targetHeight: (json['targetHeight'] as num?)?.toDouble(),
+      angleOutlierDeg: (json['angleOutlierDeg'] as num?)?.toDouble(),
+      rssiDistanceRatio: (json['rssiDistanceRatio'] as num?)?.toDouble(),
+      angleSpreadDeviation: (json['angleSpreadDeviation'] as num?)?.toDouble(),
       locators: [
         if (json['locators'] is List)
           for (final l in json['locators'] as List)
@@ -156,6 +183,11 @@ class PositioningConfig {
         'locationFilteringWeight': locationFilteringWeight,
         'numberOfSequenceIds': numberOfSequenceIds,
         'maximumSequenceIdDiffs': maximumSequenceIdDiffs,
+        if (targetHeight != null) 'targetHeight': targetHeight,
+        if (angleOutlierDeg != null) 'angleOutlierDeg': angleOutlierDeg,
+        if (rssiDistanceRatio != null) 'rssiDistanceRatio': rssiDistanceRatio,
+        if (angleSpreadDeviation != null)
+          'angleSpreadDeviation': angleSpreadDeviation,
         'locators': [for (final l in locators) l.toJson()],
         ...extras,
       };

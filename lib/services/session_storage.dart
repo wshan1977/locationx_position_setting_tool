@@ -91,6 +91,7 @@ class SessionAutoSaver extends ChangeNotifier {
       extHost: _ext.brokerHost,
       extPort: _ext.brokerPort,
       extSiteId: _ext.siteId,
+      sites: _app.siteBookJson(),
     );
     final encoded = jsonEncode(session.toJson());
     if (encoded == _lastSaved) return;
