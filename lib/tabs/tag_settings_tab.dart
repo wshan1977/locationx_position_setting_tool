@@ -282,6 +282,8 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
                   ),
                   if (_progress != null) ...[
                     const SizedBox(height: 12),
+                    _holdButtonBanner(done: !otaRunning),
+                    const SizedBox(height: 10),
                     LinearProgressIndicator(value: _progress!.fraction),
                     const SizedBox(height: 6),
                     Text(_progress!.step, style: const TextStyle(fontSize: 12.5)),
@@ -316,6 +318,41 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Hart 태그는 OTA 중 리셋(앱 → AppLoader → 새 앱) 때 BAT_HOLD(PA08)가 풀려
+  /// 전원이 꺼지므로, 업데이트 내내 전원 버튼(S1)을 누르고 있어야 한다.
+  Widget _holdButtonBanner({required bool done}) {
+    final color = done ? Colors.green : Colors.orange;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(done ? Icons.check_circle : Icons.touch_app,
+              color: color.shade700, size: 26),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              done
+                  ? '이제 태그 전원 버튼을 놓아도 됩니다.'
+                  : '태그 전원 버튼을 누른 상태로 시작하고,\n'
+                      '완료될 때까지 계속 누르고 있으세요.',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.bold,
+                color: color.shade900,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -435,10 +472,22 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('태그 펌웨어 업데이트'),
-        content: Text(
-          '${t.name.isEmpty ? t.mac : t.name} (${t.mac})에\n$_gblName 을(를) 기록합니다.\n\n'
-          '진행 중에는 태그 전원을 끄거나 멀리 옮기지 마세요 (약 1~2분).\n'
-          '중단되면 태그가 업데이트 모드로 남으며, 다시 검색해 이어서 할 수 있습니다.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${t.name.isEmpty ? t.mac : t.name} (${t.mac})에\n$_gblName 을(를) 기록합니다.',
+            ),
+            const SizedBox(height: 12),
+            _holdButtonBanner(done: false),
+            const SizedBox(height: 12),
+            const Text(
+              '진행 중에는 태그를 멀리 옮기지 마세요 (약 1~2분).\n'
+              '중단되면 태그가 업데이트 모드로 남으며, 다시 검색해 이어서 할 수 있습니다.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
         ),
         actions: [
           TextButton(
