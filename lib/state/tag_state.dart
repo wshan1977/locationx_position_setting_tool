@@ -3,6 +3,17 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:universal_ble/universal_ble.dart';
 
+import '../services/locator_ble_api.dart';
+
+/// 태그에 접속하는 경로.
+enum TagLink {
+  pc, // 이 PC의 블루투스 (universal_ble)
+  locator, // 로케이터 카드 내장 블루투스 (태그 에이전트 :8081)
+}
+
+/// 태그 검색에 쓸 로케이터 카드 (IP + 목록 표시용 짧은 이름).
+typedef LocatorCard = ({String ip, String name});
+
 /// PC(또는 폰) 블루투스 스캔으로 들은 태그 1개.
 class BleTag {
   final String mac; // 대문자 "60:B7:63:26:5A:89"
@@ -13,6 +24,10 @@ class BleTag {
   // 주소 + 1 (폰의 오래된 GATT 캐시를 피하려는 설정).
   String? otaAddr;
   DateTime seen = DateTime.now();
+  // 로케이터 경로로 찾은 태그: 가장 크게 들은 카드 (이후 접속·OTA도 이 카드로).
+  LocatorCard? via;
+  // 로케이터 경로: 이번 검색에서 이 태그를 들은 카드 이름 -> RSSI.
+  final heardBy = <String, int>{};
   BleTag(this.mac, this.name, this.rssi);
 
   /// positioning 서비스가 쓰는 태그 ID (`ble-pd-` + MAC, 구분자 제거).
@@ -78,11 +93,117 @@ class TagState extends ChangeNotifier {
   final tags = <String, BleTag>{};
   bool scanning = false;
 
+  /// 태그 접속 경로 (검색·상태 읽기·송신 주기·OTA 모두).
+  TagLink link = TagLink.pc;
+
+  /// 로케이터 경로 검색에서 응답하지 않은 카드 (이름 -> 오류).
+  final locatorErrors = <String, String>{};
+
+  void setLink(TagLink v) {
+    if (link == v) return;
+    link = v;
+    tags.clear(); // 경로마다 RSSI·접속 카드가 달라 목록을 새로 받는다
+    locatorErrors.clear();
+    notifyListeners();
+  }
+
+  /// 로케이터 경로로 들은 태그면 그 카드의 API.
+  LocatorBleApi? _remote(String mac) {
+    final v = tags[mac.toUpperCase()]?.via;
+    return link == TagLink.locator && v != null ? LocatorBleApi(v.ip) : null;
+  }
+
+  /// 로케이터 카드들의 내장 블루투스로 [secs]초 동안 동시에 검색하고, 태그마다
+  /// 가장 크게 들은 카드를 기억한다. 태그는 이름 광고를 ~1.1초마다 보내고 Pi
+  /// 블루투스는 듣는 비율이 낮아 8초면 놓칠 때가 있어 15초 (실측 2026-11-12).
+  Future<void> scanViaLocators(List<LocatorCard> cards, {int secs = 15}) async {
+    if (scanning) return;
+    scanning = true;
+    tags.clear();
+    locatorErrors.clear();
+    setStatus('로케이터 ${cards.length}대(${cards.map((c) => c.name).join(', ')})로 '
+        '$secs초 동안 검색 중...');
+    try {
+      await Future.wait([
+        for (final c in cards)
+          LocatorBleApi(c.ip).scan(secs: secs, all: showAll).then((list) {
+            for (final j in list) {
+              final mac = (j['mac'] as String).toUpperCase();
+              final rssi = (j['rssi'] as num?)?.toInt() ?? -127;
+              final name = j['name']?.toString() ?? '';
+              final t = tags.putIfAbsent(mac, () => BleTag(mac, name, rssi));
+              if (name.isNotEmpty) t.name = name;
+              if (name.toLowerCase().contains(tagName)) knownMacs.add(mac);
+              t.heardBy[c.name] = rssi;
+              if (t.via == null || rssi > t.rssi || t.via == c) {
+                t
+                  ..rssi = rssi
+                  ..via = c;
+              }
+              t.appLoader = j['appLoader'] == true;
+              if (t.appLoader) t.otaAddr = mac;
+            }
+            notifyListeners();
+          }).catchError((Object e) {
+            locatorErrors[c.name] = '$e';
+          }),
+      ]);
+      final n = visibleTags.length;
+      final bad = locatorErrors.keys.join(', ');
+      setStatus('검색 완료 · 태그 $n개 · 응답 ${cards.length - locatorErrors.length}/${cards.length}대'
+          '${bad.isEmpty ? '' : ' (실패: $bad)'}',
+          error: locatorErrors.length == cards.length);
+    } finally {
+      scanning = false;
+      notifyListeners();
+    }
+  }
+
   /// false면 태그(AssetTag)와 AppLoader만, true면 들리는 BLE 기기 전부.
   bool showAll = false;
 
+  /// 태그로 확인된 MAC: 이름(AssetTag)을 한 번이라도 들었거나 MQTT 각도·위치
+  /// 토픽(`ble-pd-<MAC>`)에 나온 것. 태그는 이름 없는 CTE 광고를 25 ms마다,
+  /// 이름 광고는 ~1.1초마다 보내므로 짧은 검색에서 이름을 못 들어도 목록에 둔다.
+  final knownMacs = <String>{};
+
+  /// MQTT 토픽 등에서 얻은 태그 ID(`ble-pd-30FB10657F77`)를 태그로 등록.
+  void addKnownTagIds(Iterable<String> ids) {
+    for (final id in ids) {
+      final m = RegExp(r'ble-pd-([0-9A-Fa-f]{12})$').firstMatch(id);
+      if (m == null) continue;
+      final h = m.group(1)!.toUpperCase();
+      knownMacs.add([for (var i = 0; i < 12; i += 2) h.substring(i, i + 2)].join(':'));
+    }
+  }
+
+  bool _isTag(BleTag t) =>
+      t.appLoader || t.name.toLowerCase().contains(tagName) || knownMacs.contains(t.mac);
+
   /// OTA·상태 읽기로 지금 접속 중인 태그 MAC (UI 버튼 잠금용).
   String? busyMac;
+
+  /// 화면 아래 상태줄: 지금 하는 일 / 마지막 결과.
+  String status = '대기 중';
+  bool statusError = false;
+  DateTime statusAt = DateTime.now();
+
+  void setStatus(String s, {bool error = false}) {
+    status = s;
+    statusError = error;
+    statusAt = DateTime.now();
+    notifyListeners();
+  }
+
+  /// 업데이트 모드(AppLoader)를 못 찾은 실패에 붙이는 안내: 대부분 태그가
+  /// AppLoader로 재부팅하는 순간 전원이 꺼진 경우다 (BAT_HOLD 래치 풀림).
+  static String otaHint(Object e) {
+    final m = '$e';
+    if (!m.contains('업데이트 모드')) return m;
+    return '$m\n→ 태그가 업데이트 모드로 재부팅하면서 전원이 꺼졌을 가능성이 큽니다. '
+        '전원 버튼을 누른 채로 다시 시도하거나, BAT_HOLD 부트로더(flash_tag.bat)를 '
+        '기록한 태그로 하세요.';
+  }
 
   static String _id(String mac) => mac.toLowerCase();
 
@@ -94,8 +215,7 @@ class TagState extends ChangeNotifier {
   /// 목록에 보일 태그: AppLoader 먼저, 이후 RSSI 강한 순.
   List<BleTag> get visibleTags {
     final l = tags.values
-        .where((t) =>
-            showAll || t.appLoader || t.name.toLowerCase().contains(tagName))
+        .where((t) => showAll || _isTag(t))
         .toList()
       ..sort((a, b) {
         if (a.appLoader != b.appLoader) return a.appLoader ? -1 : 1;
@@ -114,7 +234,7 @@ class TagState extends ChangeNotifier {
     await UniversalBle.requestPermissions();
     scanning = true;
     tags.removeWhere((_, t) => DateTime.now().difference(t.seen).inMinutes > 2);
-    notifyListeners();
+    setStatus('PC 블루투스로 $secs초 동안 검색 중...');
     UniversalBle.onScanResult = _onScan;
     try {
       await UniversalBle.startScan();
@@ -124,7 +244,7 @@ class TagState extends ChangeNotifier {
         await UniversalBle.stopScan();
       } catch (_) {}
       scanning = false;
-      notifyListeners();
+      setStatus('검색 완료 · 태그 ${visibleTags.length}개 (PC 블루투스)');
     }
   }
 
@@ -152,6 +272,7 @@ class TagState extends ChangeNotifier {
     }
     final t = tags.putIfAbsent(addr, () => BleTag(addr, name, d.rssi ?? -127));
     if (name.isNotEmpty) t.name = name;
+    if (name.toLowerCase().contains(tagName)) knownMacs.add(addr);
     t
       ..appLoader = false
       ..rssi = d.rssi ?? t.rssi
@@ -168,6 +289,7 @@ class TagState extends ChangeNotifier {
   void _tr(String s) {
     final dt = DateTime.now().difference(_t0).inMilliseconds / 1000;
     otaTrace.add('+${dt.toStringAsFixed(1)}s $s');
+    setStatus('펌웨어 업데이트 · $s');
   }
 
   static String _svcList(List<BleService> s) => s
@@ -302,8 +424,41 @@ class TagState extends ChangeNotifier {
 
   /// 접속해서 Device Information을 읽고 끊는다.
   Future<BleTagInfo> readStatus(String mac) async {
+    final r = await _op('상태 읽기', mac, () => _readStatus(mac));
+    setStatus('상태 읽기 완료 · $mac · FW ${r.fw.isEmpty ? '?' : r.fw}');
+    return r;
+  }
+
+  /// 태그 작업 하나를 상태줄에 "진행 중 → 실패" 로 표시하며 실행.
+  Future<T> _op<T>(String what, String mac, Future<T> Function() f) async {
+    final v = tags[mac.toUpperCase()]?.via;
+    setStatus('$what 중 · $mac (${v == null || link == TagLink.pc ? 'PC 블루투스' : '로케이터 ${v.name}'})...');
+    try {
+      return await f();
+    } catch (e) {
+      setStatus('$what 실패 · $mac · $e', error: true);
+      rethrow;
+    }
+  }
+
+  Future<BleTagInfo> _readStatus(String mac) async {
     final id = _id(mac);
     _setBusy(mac.toUpperCase());
+    final remote = _remote(mac);
+    if (remote != null) {
+      try {
+        final d = await remote.info(mac.toUpperCase());
+        return BleTagInfo(
+          manufacturer: d['manufacturer']?.toString() ?? '',
+          model: d['model']?.toString() ?? '',
+          hw: d['hw']?.toString() ?? '',
+          fw: d['fw']?.toString() ?? '',
+          otaCapable: d['otaCapable'] == true,
+        );
+      } finally {
+        _setBusy(null);
+      }
+    }
     try {
       final s = await _connect(mac);
       Future<Uint8List> rd(String svc, String c) async {
@@ -330,8 +485,22 @@ class TagState extends ChangeNotifier {
   /// CTE 송신 주기(ms) 설정. 0.625 ms 단위로 반올림해 쓰고, 실제 적용된 ms를
   /// 돌려준다. 태그에 CTE 서비스가 없으면 작업자용 메시지로 throw.
   Future<double> setCteIntervalMs(String mac, int ms) async {
+    final r = await _op('송신 주기 설정', mac, () => _setCteIntervalMs(mac, ms));
+    setStatus('송신 주기 적용 · $mac · ${r.toStringAsFixed(1)} ms');
+    return r;
+  }
+
+  Future<double> _setCteIntervalMs(String mac, int ms) async {
     final units = (ms / 0.625).round().clamp(32, 0xFFFF);
     _setBusy(mac.toUpperCase());
+    final remote = _remote(mac);
+    if (remote != null) {
+      try {
+        return await remote.interval(mac.toUpperCase(), ms);
+      } finally {
+        _setBusy(null);
+      }
+    }
     try {
       final s = await _connect(mac);
       if (!_has(s, cteSvc, cteIntervalChr)) {
@@ -357,7 +526,25 @@ class TagState extends ChangeNotifier {
   /// throw, 성공 시 업데이트 후 읽은 펌웨어 리비전을 돌려준다.
   Future<String> otaUpdate(String mac, Uint8List gbl,
       void Function(OtaProgress) onProgress) async {
+    try {
+      final fw = await _otaUpdate(mac, gbl, (p) {
+        setStatus('펌웨어 업데이트 · ${p.step}');
+        onProgress(p);
+      });
+      setStatus('펌웨어 업데이트 완료 · $mac${fw.isEmpty ? '' : ' · FW $fw'}');
+      return fw;
+    } catch (e) {
+      final m = otaHint(e);
+      setStatus('펌웨어 업데이트 실패 · $mac · $m', error: true);
+      throw m;
+    }
+  }
+
+  Future<String> _otaUpdate(String mac, Uint8List gbl,
+      void Function(OtaProgress) onProgress) async {
     final up = mac.toUpperCase();
+    final remote = _remote(mac);
+    if (remote != null) return _otaViaLocator(remote, up, gbl, onProgress);
     final id = _id(mac);
     _setBusy(up);
     String ota = up; // AppLoader가 응답하는 주소
@@ -462,6 +649,50 @@ class TagState extends ChangeNotifier {
     } finally {
       await _disconnect(ota);
       if (ota != up) await _disconnect(up);
+      _setBusy(null);
+    }
+  }
+
+  /// 로케이터 카드가 OTA를 수행하고(같은 AN1086 절차) 여기서는 진행을 폴링한다.
+  Future<String> _otaViaLocator(LocatorBleApi api, String mac, Uint8List gbl,
+      void Function(OtaProgress) onProgress) async {
+    _setBusy(mac);
+    otaTrace
+      ..clear()
+      ..add('via locator ${api.ip}');
+    try {
+      onProgress(const OtaProgress('로케이터로 펌웨어 전송 중', 0));
+      await api.startOta(mac, gbl);
+      var fails = 0;
+      while (true) {
+        await Future.delayed(const Duration(seconds: 1));
+        Map<String, dynamic> d;
+        try {
+          d = await api.otaStatus();
+          fails = 0;
+        } catch (e) {
+          // 카드가 잠깐 바쁘거나 네트워크가 흔들려도 OTA는 카드에서 계속 돈다.
+          if (++fails >= 30) throw '로케이터 응답 없음 ($e)';
+          continue;
+        }
+        otaTrace
+          ..clear()
+          ..add('via locator ${api.ip}')
+          ..addAll([for (final t in (d['trace'] as List? ?? const [])) '$t']);
+        final tr = d['trace'] as List? ?? const [];
+        onProgress(OtaProgress(
+            '${d['step'] ?? ''}${tr.isEmpty ? '' : ' — ${tr.last}'}',
+            (d['fraction'] as num?)?.toDouble() ?? 0));
+        final st = d['state'];
+        if (st == 'done') {
+          tags[mac]
+            ?..appLoader = false
+            ..otaAddr = null;
+          return d['fw']?.toString() ?? '';
+        }
+        if (st == 'failed') throw d['error']?.toString() ?? '실패';
+      }
+    } finally {
       _setBusy(null);
     }
   }

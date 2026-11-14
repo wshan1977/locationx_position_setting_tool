@@ -15,6 +15,11 @@ class PlacedLocator {
   /// 변환해 적용한다 (services/mask_faces.dart · 위치 설정 › 로케이터 패널).
   Set<String> maskFaces;
 
+  /// 그림만 보드 면 안에서 180° 돌려 그린다 (데이터·위치 계산은 그대로).
+  /// 케이스 안 보드 조립 방향이 로케이터마다 달라, 신호가 맞는 orientation으로
+  /// 그린 케이스가 실물과 반대로 보일 때 켠다 (2026-11-12 7924 실측).
+  bool imageFlip;
+
   PlacedLocator({
     required this.locatorId,
     this.deviceName = '',
@@ -23,6 +28,7 @@ class PlacedLocator {
     Vec3? orientation,
     Map<String, dynamic>? config,
     Set<String>? maskFaces,
+    this.imageFlip = false,
   })  : maskFaces = maskFaces ?? {},
         coordinate = coordinate ?? Vec3(z: 3.0),
         orientation = orientation ?? Vec3(x: 0, y: 180, z: 90),
@@ -39,7 +45,7 @@ class PlacedLocator {
         config: config,
         coordinate: coordinate.copy(),
         orientation: orientation.copy(),
-        extras: {'maskFaces': (maskFaces.toList()..sort())},
+        extras: {'maskFaces': (maskFaces.toList()..sort()), 'imageFlip': imageFlip},
       );
 
   factory PlacedLocator.fromJson(Map<String, dynamic> json) => PlacedLocator(
@@ -55,6 +61,7 @@ class PlacedLocator {
           if (json['maskFaces'] is List)
             for (final f in json['maskFaces'] as List) f.toString(),
         },
+        imageFlip: json['imageFlip'] == true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -65,5 +72,6 @@ class PlacedLocator {
         'orientation': orientation.toJson(),
         'config': config,
         if (maskFaces.isNotEmpty) 'maskFaces': (maskFaces.toList()..sort()),
+        if (imageFlip) 'imageFlip': true,
       };
 }

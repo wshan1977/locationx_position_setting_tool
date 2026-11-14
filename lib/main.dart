@@ -17,6 +17,7 @@ import 'state/app_state.dart';
 import 'state/external_state.dart';
 import 'state/mqtt_state.dart';
 import 'state/tag_state.dart';
+import 'tabs/aoa_mode_page.dart';
 import 'tabs/calibration_page.dart';
 import 'tabs/data_monitor_tab.dart';
 import 'tabs/device_settings_tab.dart';
@@ -173,7 +174,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/// 상단 [설정] [관제] 두 탭 (175_BDCI 도구와 같은 구성). 각 탭 안은 왼쪽
+/// 상단 [설정] [AOD 모드] [AOA 모드] 탭 (175_BDCI 도구와 같은 구성). 각 탭 안은 왼쪽
 /// 세로 메뉴(NavigationRail)로 화면을 고른다. 탭·메뉴를 바꿔도 캔버스와
 /// 연결 상태가 유지되도록 모두 IndexedStack으로 둔다.
 class _HomeScreenState extends State<HomeScreen>
@@ -184,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
@@ -221,10 +222,11 @@ class _HomeScreenState extends State<HomeScreen>
                           TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                 ],
                 const SizedBox(width: 24),
-                SizedBox(
-                  width: 240,
+                Flexible(
                   child: TabBar(
                     controller: _tabs,
+                    isScrollable: true, // 탭 폭 = 글자 길이 (긴 이름도 안 잘림)
+                    tabAlignment: TabAlignment.start,
                     onTap: (_) => setState(() {}),
                     tabs: const [
                       Tab(
@@ -239,7 +241,14 @@ class _HomeScreenState extends State<HomeScreen>
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(Icons.monitor_heart_outlined, size: 17),
                             SizedBox(width: 6),
-                            Text('관제'),
+                            Text('AOD 모드 (위치측위)'),
+                          ])),
+                      Tab(
+                          height: 48,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.explore_outlined, size: 17),
+                            SizedBox(width: 6),
+                            Text('AOA 모드 (방향각)'),
                           ])),
                     ],
                   ),
@@ -281,15 +290,27 @@ class _HomeScreenState extends State<HomeScreen>
                   items: [
                     _RailItem(Icons.monitor_heart, '데이터 수신',
                         '로케이터별 angle·position 수신 상태를\n확인합니다.'),
-                    _RailItem(Icons.account_tree, 'MQTT 뷰어',
-                        '내부망 브로커의 토픽과\n3D 위치를 확인합니다.'),
+                    _RailItem(Icons.account_tree, '내부망',
+                        '내부망 브로커의 토픽과\n3D 위치를 확인합니다.',
+                        labelOf: _internalLabel),
                     _RailItem(Icons.cloud_sync, '외부망',
-                        '외부 브로커로 중계된 상태·위치를 보고\n원격 제어합니다.'),
+                        '외부 브로커로 중계된 상태·위치를 보고\n원격 제어합니다.',
+                        labelOf: _externalLabel),
                   ],
                   pages: [
                     DataMonitorTab(),
                     MqttViewerTab(),
                     ExternalTestTab(),
+                  ],
+                ),
+                _RailShell(
+                  key: ValueKey('aoa'),
+                  items: [
+                    _RailItem(Icons.explore, '로케이터 각도',
+                        '살아 있는 로케이터를 골라 각도를\n0~360° 원과 흐르는 그래프로 봅니다.'),
+                  ],
+                  pages: [
+                    AoaModePage(),
                   ],
                 ),
               ],
@@ -305,7 +326,22 @@ class _RailItem {
   final IconData icon;
   final String label;
   final String tip;
-  const _RailItem(this.icon, this.label, this.tip);
+
+  /// 상태에 따라 바뀌는 라벨 (예: 브로커 호스트명) — 없으면 [label].
+  final String Function(BuildContext)? labelOf;
+  const _RailItem(this.icon, this.label, this.tip, {this.labelOf});
+}
+
+/// "내부망\n(호스트)" — 내부망 MQTT 브로커 (연결 바에 입력한 주소).
+String _internalLabel(BuildContext context) {
+  final h = context.watch<MqttState>().host;
+  return '내부망\n(${h.isEmpty ? '미설정' : h})';
+}
+
+/// "외부망\n(호스트)" — 외부망 중계 브로커.
+String _externalLabel(BuildContext context) {
+  final h = context.watch<ExternalState>().brokerHost;
+  return '외부망\n(${h.isEmpty ? '미설정' : h})';
 }
 
 /// 왼쪽 세로 메뉴 + 오른쪽 화면.
@@ -335,7 +371,7 @@ class _RailShellState extends State<_RailShell> {
             for (final it in widget.items)
               NavigationRailDestination(
                 icon: Tooltip(message: it.tip, child: Icon(it.icon)),
-                label: Text(it.label,
+                label: Text(it.labelOf?.call(context) ?? it.label,
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 12)),
               ),

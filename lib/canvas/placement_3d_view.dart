@@ -17,6 +17,8 @@ import 'world_transform.dart' show canvasBackground;
 /// - 로케이터 드래그: X/Y 이동 (바닥 평면 기준)
 /// - Shift + 로케이터 드래그: Z(설치 높이) 조절
 /// - 클릭: 선택 (왼쪽 패널에서 세부 편집)
+/// - [회전 편집] 켬: 로케이터 드래그 = 자세 회전 (좌우 → Z, 위아래 → X,
+///   Shift+위아래 → Y) · 오른쪽 위 버튼으로 축별 ±각도
 ///
 /// 로케이터는 orientation을 반영한 보드로 그려져 천장/벽 설치 자세와
 /// 회전 방향(x/y 노치)을 눈으로 확인하며 배치할 수 있다.
@@ -35,6 +37,23 @@ class _Placement3dViewState extends State<Placement3dView> {
 
   String? _draggingId;
   bool _rotating = false;
+
+  // 회전 편집 모드: 로케이터 드래그가 이동 대신 자세(orientation) 회전
+  bool _editRotate = false;
+  double _step = 15;
+  String? _turningId;
+  double _accX = 0, _accY = 0, _accZ = 0; // 드래그 누적 (1° 단위로 반영)
+
+  static double _norm(double v) => ((v % 360) + 360) % 360;
+
+  /// 선택 로케이터 자세를 축별로 [d]도 돌린다 (0~360 정규화 · 정수 도).
+  void _turn(AppState app, PlacedLocator p, {double dx = 0, double dy = 0, double dz = 0}) {
+    final o = p.orientation;
+    o.x = _norm((o.x + dx).roundToDouble());
+    o.y = _norm((o.y + dy).roundToDouble());
+    o.z = _norm((o.z + dz).roundToDouble());
+    app.placementEdited();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,13 +92,43 @@ class _Placement3dViewState extends State<Placement3dView> {
           },
           onPanStart: (d) {
             final hit = _hitTest(app, cam, d.localPosition);
-            _draggingId = hit?.locatorId;
             _rotating = hit == null;
+            if (_editRotate && hit != null) {
+              _turningId = hit.locatorId;
+              _draggingId = null;
+              _accX = _accY = _accZ = 0;
+            } else {
+              _draggingId = hit?.locatorId;
+            }
             if (hit != null) {
               context.read<AppState>().selectLocator(hit.locatorId);
             }
           },
           onPanUpdate: (d) {
+            final tid = _turningId;
+            if (tid != null) {
+              // 회전 편집: 0.5°/px · 1° 쌓일 때마다 반영
+              final appState = context.read<AppState>();
+              final p = appState.placements.where((e) => e.locatorId == tid).firstOrNull;
+              if (p == null) return;
+              final shift = HardwareKeyboard.instance.isShiftPressed;
+              _accZ += d.delta.dx * 0.5;
+              if (shift) {
+                _accY += d.delta.dy * 0.5;
+              } else {
+                _accX += d.delta.dy * 0.5;
+              }
+              final ix = _accX.truncateToDouble(),
+                  iy = _accY.truncateToDouble(),
+                  iz = _accZ.truncateToDouble();
+              if (ix != 0 || iy != 0 || iz != 0) {
+                _accX -= ix;
+                _accY -= iy;
+                _accZ -= iz;
+                _turn(appState, p, dx: ix, dy: iy, dz: iz);
+              }
+              return;
+            }
             if (_rotating) {
               setState(() {
                 _yaw += d.delta.dx * 0.008;
@@ -139,6 +188,7 @@ class _Placement3dViewState extends State<Placement3dView> {
           },
           onPanEnd: (_) {
             _draggingId = null;
+            _turningId = null;
             _rotating = false;
           },
           child: ClipRect(
@@ -152,17 +202,108 @@ class _Placement3dViewState extends State<Placement3dView> {
                   left: 8,
                   bottom: 8,
                   child: Text(
-                    '드래그: 회전 · 로케이터 드래그: X/Y 이동 · Shift+드래그: 높이(Z) · 휠: 줌 · 가운데 버튼: 이동',
-                    style:
-                        TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                    _editRotate
+                        ? '회전 편집 중 · 로케이터 드래그: 좌우 → Z 회전 · 위아래 → X 기울기 · '
+                            'Shift+위아래 → Y · 빈 곳 드래그: 시점 회전'
+                        : '드래그: 회전 · 로케이터 드래그: X/Y 이동 · Shift+드래그: 높이(Z) · 휠: 줌 · 가운데 버튼: 이동',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: _editRotate ? Colors.deepOrange.shade700 : Colors.grey.shade700),
                   ),
                 ),
+                Positioned(
+                  left: 8,
+                  top: 8,
+                  child: FilterChip(
+                    avatar: const Icon(Icons.threesixty, size: 16),
+                    label: const Text('회전 편집', style: TextStyle(fontSize: 12)),
+                    selected: _editRotate,
+                    tooltip: '켜면 로케이터를 드래그해 설치 자세(orientation)를 돌립니다.\n'
+                        '위치 이동은 끄고 하세요.',
+                    onSelected: (v) => setState(() => _editRotate = v),
+                  ),
+                ),
+                if (_editRotate)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: _rotatePanel(app),
+                  ),
               ],
             ),
           ),
         ),
       );
     });
+  }
+
+  /// 회전 편집 패널: 선택 로케이터의 X/Y/Z를 [_step]도씩 돌린다.
+  Widget _rotatePanel(AppState app) {
+    final p = app.selectedPlacement;
+    Widget axis(String name, double v, Color c, void Function(double d) f) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+                width: 18,
+                child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: c))),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              tooltip: '-${_step.toInt()}°',
+              onPressed: () => f(-_step),
+              icon: const Icon(Icons.rotate_left),
+            ),
+            SizedBox(
+                width: 44,
+                child: Text('${v.toStringAsFixed(0)}°',
+                    textAlign: TextAlign.center, style: const TextStyle(fontSize: 13))),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              tooltip: '+${_step.toInt()}°',
+              onPressed: () => f(_step),
+              icon: const Icon(Icons.rotate_right),
+            ),
+          ],
+        );
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: p == null
+            ? const Text('로케이터를 클릭해 선택하세요', style: TextStyle(fontSize: 12))
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${p.shortId} 자세 (orientation)',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  axis('X', p.orientation.x, Colors.red.shade700,
+                      (d) => _turn(app, p, dx: d)),
+                  axis('Y', p.orientation.y, Colors.green.shade700,
+                      (d) => _turn(app, p, dy: d)),
+                  axis('Z', p.orientation.z, Colors.blue.shade700,
+                      (d) => _turn(app, p, dz: d)),
+                  const SizedBox(height: 4),
+                  SegmentedButton<double>(
+                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                    showSelectedIcon: false,
+                    segments: [
+                      for (final s in const [90.0, 15.0, 5.0, 1.0])
+                        ButtonSegment(
+                            value: s,
+                            label: Text('${s.toInt()}°', style: const TextStyle(fontSize: 11))),
+                    ],
+                    selected: {_step},
+                    onSelectionChanged: (v) => setState(() => _step = v.first),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('바꾼 자세는 [서버로 전송] 후 위치 계산에 반영됩니다',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ],
+              ),
+      ),
+    );
   }
 
   double _fitScale(AppState app, Size canvas) {
@@ -383,7 +524,9 @@ class _Placement3dPainter extends CustomPainter {
     final mesh = app.showLocatorPhoto ? CaseMesh.instance : null;
     if (mesh != null) {
       drawCaseMesh(canvas, mesh,
-          rot: rot,
+          rot: CaseMesh.drawRotation(
+              p.orientation.x, p.orientation.y, p.orientation.z,
+              flip: p.imageFlip),
           cx: cx,
           cy: cy,
           cz: cz,

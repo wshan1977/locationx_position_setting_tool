@@ -38,7 +38,8 @@ void main() {
     await pumpApp(tester);
 
     expect(find.text('설정'), findsOneWidget);
-    expect(find.text('관제'), findsOneWidget);
+    expect(find.text('AOD 모드 (위치측위)'), findsOneWidget);
+    expect(find.text('AOA 모드 (방향각)'), findsOneWidget);
     expect(find.text('장소 · 층'), findsOneWidget);
     expect(find.text('① Locator 설정'), findsOneWidget);
     expect(find.text('② Tag 설정'), findsOneWidget);
@@ -52,11 +53,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Locator 검색 (UDP)'), findsOneWidget);
 
-    await tester.tap(find.text('관제'));
+    await tester.tap(find.text('AOD 모드 (위치측위)'));
     await tester.pumpAndSettle();
     expect(find.text('데이터 수신'), findsOneWidget);
-    expect(find.text('MQTT 뷰어'), findsOneWidget);
-    expect(find.text('외부망'), findsOneWidget);
+    expect(find.textContaining('내부망\n('), findsOneWidget);
+    expect(find.textContaining('외부망\n('), findsOneWidget);
+
+    await tester.tap(find.text('AOA 모드 (방향각)'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('로케이터 각도'), findsOneWidget);
+    expect(find.text('내부망 브로커에 연결하세요.'), findsOneWidget);
   });
 
   testWidgets('tag settings tab shows BLE scan and empty list',

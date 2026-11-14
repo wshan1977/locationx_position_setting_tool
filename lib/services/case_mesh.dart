@@ -16,7 +16,37 @@ import 'package:flutter/services.dart' show rootBundle;
 /// 방향이 실물과 다르면 [yawOffsetDeg]만 바꾸면 된다.
 class CaseMesh {
   /// 커넥터 방향 매핑이 틀렸을 때 90° 단위로 돌려 보정 (0/90/180/270).
+  /// 로케이터마다 다른 차이는 PlacedLocator.imageFlip(그림만 면 안 180°)으로.
   static const yawOffsetDeg = 0;
+
+  /// 그림용 Y 보정(도) — 0 (v1.13.3에서 180으로 했다가 되돌림: 천장 로케이터
+  /// 데이터 Y가 0으로 잘못 바뀐 상태에 맞춘 보정이었음 · 데이터 Y=180이 정상).
+  static const drawYOffsetDeg = 0.0;
+
+  /// 케이스 메시를 그릴 때 쓰는 회전 (Rz·Ry·Rx, row-major 3x3) — 설정 자세
+  /// (도)에 [drawYOffsetDeg]를 더한 값. 노치·바라보는 방향 화살표는 설정
+  /// 자세 그대로 그린다.
+  static List<double> drawRotation(double xDeg, double yDeg, double zDeg,
+      {bool flip = false}) {
+    final a = xDeg * math.pi / 180;
+    final b = (yDeg + drawYOffsetDeg) * math.pi / 180;
+    final c = zDeg * math.pi / 180;
+    final ca = math.cos(a), sa = math.sin(a);
+    final cb = math.cos(b), sb = math.sin(b);
+    final cc = math.cos(c), sc = math.sin(c);
+    final r = [
+      cc * cb, cc * sb * sa - sc * ca, cc * sb * ca + sc * sa, //
+      sc * cb, sc * sb * sa + cc * ca, sc * sb * ca - cc * sa, //
+      -sb, cb * sa, cb * ca,
+    ];
+    if (!flip) return r;
+    // 보드 로컬 z축 180° (R·Rz(180)): 로컬 x·y 열 부호 반전 = 면 안에서 뒤집기
+    return [
+      -r[0], -r[1], r[2], //
+      -r[3], -r[4], r[5], //
+      -r[6], -r[7], r[8],
+    ];
+  }
 
   /// 3D 뷰 표시 배율 — 실측(18cm)은 룸 스케일 화면에서 너무 작아
   /// 작업자 시인성을 위해 키워 그린다 (사용자 요청 1.5배).

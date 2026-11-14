@@ -154,6 +154,15 @@ class _PositionLiveViewState extends State<PositionLiveView> {
   /// (토픽 통계에 남은 마지막 메시지로 즉시 재생성되는 것을 방지).
   final Map<String, DateTime> _dismissedAt = {};
 
+  /// 태그 목록에서 체크를 끈(숨긴) 태그.
+  final Set<String> _hiddenTags = {};
+
+  /// 그림과 같은 태그 색 (수신 순서 기준 · angle만 있는 태그는 해시).
+  Color _tagColorOf(String tagId) {
+    final idx = _tracks.keys.toList().indexOf(tagId);
+    return idx >= 0 ? _tagColors[idx % _tagColors.length] : _tagColor(tagId);
+  }
+
   bool _is3d = true;
   bool _showCoverage = true;
   bool _showRays = true;
@@ -478,13 +487,22 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                 )
-              : LayoutBuilder(builder: (context, constraints) {
-                  final size =
-                      Size(constraints.maxWidth, constraints.maxHeight);
-                  return _is3d
-                      ? _build3d(app, placements, rays, size)
-                      : _build2d(app, placements, rays, size);
-                }),
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        final size =
+                            Size(constraints.maxWidth, constraints.maxHeight);
+                        return _is3d
+                            ? _build3d(app, placements, rays, size)
+                            : _build2d(app, placements, rays, size);
+                      }),
+                    ),
+                    const VerticalDivider(width: 1),
+                    SizedBox(width: 210, child: _tagListPanel(rays)),
+                  ],
+                ),
         ),
         const Divider(height: 1),
         Padding(
@@ -495,6 +513,98 @@ class _PositionLiveViewState extends State<PositionLiveView> {
             '태그 옅은 원=위치 오차(stdev, 표시상 3m 상한).',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
           ),
+        ),
+      ],
+    );
+  }
+
+  /// 오른쪽 태그 목록: 체크한 태그만 위치·angle 점선을 그린다.
+  Widget _tagListPanel(List<_AngleRay> rays) {
+    final ids = <String>{
+      ..._tracks.keys,
+      for (final r in rays) r.tagId,
+    }.toList();
+    final now = DateTime.now();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 6, 2),
+          child: Row(children: [
+            Expanded(
+              child: Text('태그 (${ids.length - ids.where(_hiddenTags.contains).length}/${ids.length})',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(4)),
+              onPressed: () => setState(() => _hiddenTags.clear()),
+              child: const Text('전체', style: TextStyle(fontSize: 11)),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact, padding: const EdgeInsets.all(4)),
+              onPressed: () => setState(() => _hiddenTags.addAll(ids)),
+              child: const Text('해제', style: TextStyle(fontSize: 11)),
+            ),
+          ]),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ids.isEmpty
+              ? Center(
+                  child: Text('수신된 태그 없음',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                )
+              : ListView(
+                  children: [
+                    for (final id in ids)
+                      Builder(builder: (_) {
+                        final t = _tracks[id];
+                        final age = t == null
+                            ? null
+                            : now.difference(t.lastTs).inMilliseconds / 1000;
+                        final short = id.length >= 4 ? id.substring(id.length - 4) : id;
+                        return Tooltip(
+                          message: id,
+                          waitDuration: const Duration(milliseconds: 600),
+                          child: CheckboxListTile(
+                            dense: true,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                            value: !_hiddenTags.contains(id),
+                            onChanged: (v) => setState(() {
+                              if (v == true) {
+                                _hiddenTags.remove(id);
+                              } else {
+                                _hiddenTags.add(id);
+                              }
+                            }),
+                            title: Row(children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                    color: _tagColorOf(id), shape: BoxShape.circle),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(short,
+                                  style: const TextStyle(
+                                      fontSize: 13, fontWeight: FontWeight.w600)),
+                            ]),
+                            subtitle: Text(
+                              t == null
+                                  ? 'angle만 수신'
+                                  : (age! < _sleepAfterSec
+                                      ? '수신 중 · (${t.pos.dx.toStringAsFixed(2)}, ${t.pos.dy.toStringAsFixed(2)})'
+                                      : '슬립 · ${_ageText(age)}'),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        );
+                      }),
+                  ],
+                ),
         ),
       ],
     );
@@ -534,6 +644,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
               placements: placements,
               rays: rays,
               tracks: _tracks,
+              hidden: _hiddenTags,
               now: DateTime.now(),
               yaw: _yaw,
               pitch: _pitch,
@@ -617,6 +728,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
                     view: view,
                     rays: rays,
                     tracks: _tracks,
+                    hidden: _hiddenTags,
                     now: DateTime.now(),
                     showCoverage: _showCoverage,
                     showRays: _showRays,
@@ -744,16 +856,38 @@ String _ageText(double ageSec) {
 /// [태그 갱신]을 누르면 화면에서 제거된다.
 const double _sleepAfterSec = 10;
 
+// 점선 간격 (화면 px) — 신호선·커버리지 공통. 길이와 무관하게 촘촘히.
+const double _dashPx = 4;
+const double _gapPx = 3;
+
 void _dashedLine(Canvas canvas, Offset a, Offset b, Paint paint,
-    {double dash = 7, double gap = 5}) {
-  final total = (b - a).distance;
-  if (total < 1e-3) return;
-  final dir = (b - a) / total;
-  var drawn = 0.0;
-  while (drawn < total) {
-    final segEnd = math.min(drawn + dash, total);
-    canvas.drawLine(a + dir * drawn, a + dir * segEnd, paint);
-    drawn = segEnd + gap;
+    {double dash = _dashPx, double gap = _gapPx}) {
+  _dashedPath(canvas, [a, b], paint, dash: dash, gap: gap);
+}
+
+/// 화면 좌표 꺾은선을 화면 길이 기준 점선으로 (원·투영된 3D 선 공용).
+void _dashedPath(Canvas canvas, List<Offset> pts, Paint paint,
+    {double dash = _dashPx, double gap = _gapPx}) {
+  var on = true; // 지금 그리는 구간인지
+  var left = dash; // 현재 구간에 남은 길이
+  for (var i = 1; i < pts.length; i++) {
+    var a = pts[i - 1];
+    final b = pts[i];
+    var segLen = (b - a).distance;
+    if (segLen < 1e-6) continue;
+    final dir = (b - a) / segLen;
+    while (segLen > 0) {
+      final step = math.min(left, segLen);
+      final next = a + dir * step;
+      if (on) canvas.drawLine(a, next, paint);
+      a = next;
+      segLen -= step;
+      left -= step;
+      if (left <= 1e-6) {
+        on = !on;
+        left = on ? dash : gap;
+      }
+    }
   }
 }
 
@@ -804,6 +938,7 @@ class _Live3dPainter extends CustomPainter {
   final List<PlacedLocator> placements;
   final List<_AngleRay> rays;
   final Map<String, _TagTrack> tracks;
+  final Set<String> hidden; // 태그 목록에서 끈 태그 (그리지 않음 · 색은 유지)
   final DateTime now;
   final double yaw;
   final double pitch;
@@ -820,6 +955,7 @@ class _Live3dPainter extends CustomPainter {
     required this.placements,
     required this.rays,
     required this.tracks,
+    this.hidden = const {},
     required this.now,
     required this.yaw,
     required this.pitch,
@@ -882,7 +1018,7 @@ class _Live3dPainter extends CustomPainter {
     if (showRays) {
       for (final ray in rays) {
         final placement = placementById[ray.locatorId];
-        if (placement == null) continue;
+        if (placement == null || hidden.contains(ray.tagId)) continue;
         _drawRay3d(canvas, placement, ray);
       }
     }
@@ -894,7 +1030,9 @@ class _Live3dPainter extends CustomPainter {
     }
 
     // 태그
-    tracks.forEach((tagId, track) => _drawTag3d(canvas, tagId, track));
+    tracks.forEach((tagId, track) {
+      if (!hidden.contains(tagId)) _drawTag3d(canvas, tagId, track);
+    });
   }
 
   Rect _bounds() {
@@ -1020,7 +1158,9 @@ class _Live3dPainter extends CustomPainter {
     final mesh = CaseMesh.instance;
     if (showCase && mesh != null) {
       drawCaseMesh(canvas, mesh,
-          rot: rot.m,
+          rot: CaseMesh.drawRotation(
+              p.orientation.x, p.orientation.y, p.orientation.z,
+              flip: p.imageFlip),
           cx: cx,
           cy: cy,
           cz: cz,
@@ -1111,16 +1251,12 @@ class _Live3dPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.teal.withValues(alpha: 0.55)
       ..strokeWidth = 1.2;
-    const seg = 36;
-    for (var i = 0; i < seg; i += 2) {
-      final a0 = i / seg * 2 * math.pi;
-      final a1 = (i + 1) / seg * 2 * math.pi;
-      canvas.drawLine(
-        _p(cxF + radius * math.cos(a0), cyF + radius * math.sin(a0), 0),
-        _p(cxF + radius * math.cos(a1), cyF + radius * math.sin(a1), 0),
-        paint,
-      );
-    }
+    const seg = 180;
+    _dashedPath(canvas, [
+      for (var i = 0; i <= seg; i++)
+        _p(cxF + radius * math.cos(i / seg * 2 * math.pi),
+            cyF + radius * math.sin(i / seg * 2 * math.pi), 0),
+    ], paint);
     canvas.drawCircle(_p(cxF, cyF, 0), 2,
         Paint()..color = Colors.teal.withValues(alpha: 0.6));
     _label(
@@ -1220,19 +1356,11 @@ class _Live3dPainter extends CustomPainter {
 
     final color = _colorFor(ray.tagId).withValues(alpha: ray.live ? 0.9 : 0.3);
 
-    const steps = 14;
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.6;
-    for (var i = 0; i < steps; i += 2) {
-      final t0 = i / steps;
-      final t1 = (i + 1) / steps;
-      canvas.drawLine(
-        _p(sx + (ex - sx) * t0, sy + (ey - sy) * t0, sz + (ez - sz) * t0),
-        _p(sx + (ex - sx) * t1, sy + (ey - sy) * t1, sz + (ez - sz) * t1),
-        paint,
-      );
-    }
+    // 원근 투영해도 직선은 직선 → 양 끝만 투영해 화면 길이 기준 점선
+    _dashedLine(canvas, _p(sx, sy, sz), _p(ex, ey, ez),
+        Paint()
+          ..color = color
+          ..strokeWidth = 1.6);
 
     _label(
       canvas,
@@ -1256,6 +1384,7 @@ class _Live2dPainter extends CustomPainter {
   final WorldTransform view;
   final List<_AngleRay> rays;
   final Map<String, _TagTrack> tracks;
+  final Set<String> hidden; // 태그 목록에서 끈 태그 (그리지 않음 · 색은 유지)
   final DateTime now;
   final bool showCoverage;
   final bool showRays;
@@ -1268,6 +1397,7 @@ class _Live2dPainter extends CustomPainter {
     required this.view,
     required this.rays,
     required this.tracks,
+    this.hidden = const {},
     required this.now,
     required this.showCoverage,
     required this.showRays,
@@ -1322,7 +1452,7 @@ class _Live2dPainter extends CustomPainter {
     if (showRays) {
       for (final ray in rays) {
         final placement = placementById[ray.locatorId];
-        if (placement == null) continue;
+        if (placement == null || hidden.contains(ray.tagId)) continue;
         _drawRay(canvas, placement, ray);
       }
     }
@@ -1332,7 +1462,9 @@ class _Live2dPainter extends CustomPainter {
       _drawLocatorBoard2d(canvas, p, receiving);
     }
 
-    tracks.forEach((tagId, track) => _drawTag2d(canvas, tagId, track));
+    tracks.forEach((tagId, track) {
+      if (!hidden.contains(tagId)) _drawTag2d(canvas, tagId, track);
+    });
   }
 
   /// 화면상 그리드 간격이 40px 이상이 되도록 1/2/5... m 스텝을 고른다.
@@ -1428,14 +1560,29 @@ class _Live2dPainter extends CustomPainter {
     // 등(back)이 보이고, 바닥 설치(위를 봄)는 앞면(front)이 보인다.
     final nrm = rot.apply(0, 0, 1);
     final img = nrm.z < 0 ? LocatorImages.back : LocatorImages.front;
-    if (img != null) {
+    final mesh = CaseMesh.instance;
+    if (nrm.z.abs() < 0.7 && mesh != null) {
+      // 벽·경사 설치: 세운 케이스를 위에서 본 모양 + 바라보는 방향 화살표
+      drawCaseMeshIcon2d(canvas, mesh,
+          rot: rot.m,
+          meshRot: CaseMesh.drawRotation(
+              p.orientation.x, p.orientation.y, p.orientation.z,
+              flip: p.imageFlip),
+          cx: p.coordinate.x,
+          cy: p.coordinate.y,
+          toScreen: view.worldToScreen,
+          color: receiving ? const Color(0xFF9FB8D6) : const Color(0xFFB9C3CD),
+          // 사진과 같은 월드 크기(0.5 m) → 줌에 따라 도면과 함께 커지고 작아짐
+          widthPx: (corner(h, 0) - corner(-h, 0)).distance);
+    } else if (img != null) {
       // 보드 +x(커넥터 · 0°)의 화면 방향각 — 이미지 위쪽 = 커넥터 가정
       final xw = rot.apply(1, 0, 0);
       final sx = view.worldToScreen(
           Offset(p.coordinate.x + xw.x, p.coordinate.y + xw.y));
       final ang = math.atan2(sx.dy - center.dy, sx.dx - center.dx);
       final sizePx = (corner(h, 0) - corner(-h, 0)).distance;
-      LocatorImages.drawRotated(canvas, img, center, sizePx, ang);
+      LocatorImages.drawRotated(
+          canvas, img, center, sizePx, ang + (p.imageFlip ? math.pi : 0));
       // 수신 상태는 테두리로 유지
       canvas.drawPath(
           plate,
@@ -1499,16 +1646,13 @@ class _Live2dPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.teal.withValues(alpha: 0.55)
       ..strokeWidth = 1.2;
-    const seg = 36;
-    for (var i = 0; i < seg; i += 2) {
-      final a0 = i / seg * 2 * math.pi;
-      final a1 = (i + 1) / seg * 2 * math.pi;
-      canvas.drawLine(
-        center + Offset(math.cos(a0), math.sin(a0)) * radius,
-        center + Offset(math.cos(a1), math.sin(a1)) * radius,
-        paint,
-      );
-    }
+    const seg = 180;
+    _dashedPath(canvas, [
+      for (var i = 0; i <= seg; i++)
+        center +
+            Offset(math.cos(i / seg * 2 * math.pi), math.sin(i / seg * 2 * math.pi)) *
+                radius,
+    ], paint);
     canvas.drawCircle(
         center, 2, Paint()..color = Colors.teal.withValues(alpha: 0.6));
     _label(

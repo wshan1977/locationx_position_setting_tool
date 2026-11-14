@@ -6,9 +6,11 @@ import 'dart:math' as math;
 
 import '../models/discovered_device.dart';
 import '../models/placement.dart';
+import '../services/case_mesh.dart';
 import '../services/locator_images.dart';
 import '../services/mask_faces.dart';
 import '../state/app_state.dart';
+import 'case_mesh_renderer.dart';
 import 'grid_painter.dart';
 import 'locator_marker.dart';
 import 'world_transform.dart' show canvasBackground;
@@ -270,6 +272,23 @@ class _LocatorPhotoPainter extends CustomPainter {
       final rot = _euler(p.orientation.x, p.orientation.y, p.orientation.z);
       // 법선 z (R * (0,0,1)) — 아래를 보면 back, 위를 보면 front
       final nz = rot[8];
+      // 벽·경사 설치: 사진으로는 세운 모양이 안 보여 세운 케이스 그림으로
+      final mesh = CaseMesh.instance;
+      if (nz.abs() < 0.7 && mesh != null) {
+        drawCaseMeshIcon2d(canvas, mesh,
+            rot: rot,
+            meshRot: CaseMesh.drawRotation(
+              p.orientation.x, p.orientation.y, p.orientation.z,
+              flip: p.imageFlip),
+            cx: p.coordinate.x,
+            cy: p.coordinate.y,
+            toScreen: t.worldToScreen,
+            color: const Color(0xFFB9C3CD),
+            // 사진과 같은 월드 크기(0.5 m) — 줌에 따라 도면과 함께 커지고 작아짐
+            widthPx: 0.5 / t.metersPerPixel * t.zoom,
+            lift: 17 + 0.25 / t.metersPerPixel * t.zoom); // 마커(34px) 위로
+        continue;
+      }
       final img = nz < 0 ? LocatorImages.back : LocatorImages.front;
       if (img == null) continue;
 
@@ -282,7 +301,8 @@ class _LocatorPhotoPainter extends CustomPainter {
       final ang = math.atan2(tip.dy - center.dy, tip.dx - center.dx);
 
       final sizePx = 0.5 / t.metersPerPixel * t.zoom;
-      LocatorImages.drawRotated(canvas, img, center, sizePx, ang);
+      LocatorImages.drawRotated(
+          canvas, img, center, sizePx, ang + (p.imageFlip ? math.pi : 0));
     }
   }
 

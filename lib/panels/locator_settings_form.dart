@@ -161,6 +161,23 @@ class LocatorSettingsForm extends StatelessWidget {
           '천장 설치(안테나가 아래를 향함) 기본값: X=0, Y=180, Z=90',
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
         ),
+        _cfgTip(
+          'X/Y/Z는 관제의 신호선(빨간선)이 실제 태그를 가리키도록 맞추세요 — 위치 계산은 이 값만 씁니다.\n'
+          '그 값으로 그린 케이스가 실물과 반대로 보이면 이 스위치를 켜세요.\n'
+          '그림만 보드 면 안에서 180° 돌리며, 데이터와 위치 계산은 바뀌지 않습니다.',
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('케이스 그림만 180° 돌리기', style: TextStyle(fontSize: 13)),
+            subtitle: const Text('데이터 변경 없음 · 그림이 실물과 반대일 때',
+                style: TextStyle(fontSize: 11)),
+            value: p.imageFlip,
+            onChanged: (v) {
+              p.imageFlip = v;
+              app.placementEdited();
+            },
+          ),
+        ),
         const SizedBox(height: 8),
 
         // ---- AoA config ----

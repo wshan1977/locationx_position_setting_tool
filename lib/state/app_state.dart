@@ -450,6 +450,7 @@ class AppState extends ChangeNotifier {
     final previousMasks = {
       for (final p in placements) p.locatorId: Set<String>.from(p.maskFaces),
     };
+    final previousFlip = {for (final p in placements) p.locatorId: p.imageFlip};
     placements.clear();
     for (final l in fetched.locators) {
       // 검색된 장치와 매칭되면 이름/IP를 채운다 (이후 검색 시에도 자동 동기화)
@@ -467,6 +468,9 @@ class AppState extends ChangeNotifier {
         maskFaces: serverMasks is List
             ? {for (final f in serverMasks) f.toString()}
             : previousMasks[l.id],
+        imageFlip: l.extras['imageFlip'] is bool
+            ? l.extras['imageFlip'] as bool
+            : (previousFlip[l.id] ?? false),
       ));
     }
     selectedLocatorId = null;
