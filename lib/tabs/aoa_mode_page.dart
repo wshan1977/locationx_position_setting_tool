@@ -99,8 +99,8 @@ class _AoaModePageState extends State<AoaModePage> {
 
   void _onRecord(MqttMessageRecord r) {
     final parts = r.topic.split('/');
-    // controlbit/aoa/angle/<locator>/<tag> (내부 토픽도 MqttState가 이 이름으로 바꿔 줌)
-    if (parts.length < 5 || parts[0] != 'controlbit' || parts[2] != 'angle') return;
+    // <루트>/aoa/angle/<locator>/<tag> (내부 토픽도 MqttState가 고객용 이름으로 바꿔 줌)
+    if (parts.length < 5 || parts[1] != 'aoa' || parts[2] != 'angle') return;
     Map<String, dynamic> j;
     try {
       j = jsonDecode(r.payload) as Map<String, dynamic>;

@@ -24,7 +24,11 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
   final _host = TextEditingController(text: 'broker.hivemq.com');
   final _port = TextEditingController(text: '1883');
   final _maxHz = TextEditingController(text: '10');
+  // 외부 토픽 이름(siteId) — locationx/<siteId>/... · 비우면 서버가 무작위 생성 (데모·업체별 지정)
+  final _siteId = TextEditingController();
   bool _enabled = false;
+  bool _forwardAngle = false; // 각도 중계 (홈페이지 AOA 데모 · 서버 v2.7.2+)
+  bool _acceptCommands = false; // 원격 명령 수신 (서버 v2.7.1+ · 기본 꺼짐)
   String _appliedSiteId = '';
   String _agentActive = '';
   String _message = '';
@@ -42,6 +46,7 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
     _host.dispose();
     _port.dispose();
     _maxHz.dispose();
+    _siteId.dispose();
     super.dispose();
   }
 
@@ -62,7 +67,12 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
         _maxHz.text =
             '${(staged['forward_max_hz'] as num?)?.toInt() ?? 10}';
         _enabled = staged['enabled'] == true;
+        _forwardAngle = staged['forward_angle'] == true;
+        _acceptCommands = staged['accept_commands'] == true;
         _appliedSiteId = cloud.applied['site_id']?.toString() ?? '';
+        _siteId.text = (staged['site_id']?.toString() ?? '').isNotEmpty
+            ? staged['site_id'].toString()
+            : _appliedSiteId;
         _agentActive = cloud.agentActive;
         _message = '';
         _loaded = true;
@@ -84,6 +94,11 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
       setState(() => _message = '전송속도는 1~100 Hz 범위로 입력하세요');
       return;
     }
+    final site = _siteId.text.trim();
+    if (site.isNotEmpty && !RegExp(r'^[A-Za-z0-9_-]{3,40}$').hasMatch(site)) {
+      setState(() => _message = '외부 토픽 이름(siteId)은 영문·숫자·-·_ 3~40자');
+      return;
+    }
     final ok = await confirmSettingsPassword(context, '외부망 중계 설정 변경');
     if (!ok || !mounted) return;
 
@@ -97,6 +112,9 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
         'broker_host': _host.text.trim(),
         'broker_port': int.tryParse(_port.text.trim()) ?? 1883,
         'forward_max_hz': hz,
+        'forward_angle': _forwardAngle,
+        if (site.isNotEmpty) 'site_id': site,
+        'accept_commands': _acceptCommands,
       });
       await _client.applyCloud();
       // 에이전트가 반영본 mtime을 감지(5초 주기)해 재접속·siteId 생성 → 재조회
@@ -126,11 +144,50 @@ class _CloudConfigFormState extends State<CloudConfigForm> {
           title: const Text('중계 활성화 (cloud-agent)',
               style: TextStyle(fontSize: 13.5)),
           subtitle: const Text(
-              'position 결과·Locator 상태를 외부 브로커로 발행하고 원격 명령을 받습니다',
+              'position 결과·Locator 상태를 외부 브로커로 발행합니다',
               style: TextStyle(fontSize: 11.5)),
           value: _enabled,
           onChanged:
               (_busy || !_loaded) ? null : (v) => setState(() => _enabled = v),
+        ),
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('각도(AOA)도 중계', style: TextStyle(fontSize: 13.5)),
+          subtitle: const Text(
+              '로케이터별 방위·앙각을 외부로 보냅니다 — 홈페이지 실시간 AOA 데모용 (서버 v2.7.2+)',
+              style: TextStyle(fontSize: 11.5)),
+          value: _forwardAngle,
+          onChanged: (_busy || !_loaded) ? null : (v) => setState(() => _forwardAngle = v),
+        ),
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('원격 명령 허용 (재부팅·재시작·LED)', style: TextStyle(fontSize: 13.5)),
+          subtitle: Text(
+              _acceptCommands
+                  ? '주의: siteId를 아는 사람은 누구나 장비를 재부팅할 수 있습니다 — 홈페이지에 공개하는 동안은 끄세요'
+                  : '꺼짐 — 위치·상태만 중계 (홈페이지 공개 데모에 안전)',
+              style: TextStyle(
+                  fontSize: 11.5, color: _acceptCommands ? Colors.orange.shade800 : null)),
+          value: _acceptCommands,
+          onChanged: (_busy || !_loaded) ? null : (v) => setState(() => _acceptCommands = v),
+        ),
+        const SizedBox(height: 8),
+        hoverTip(
+          '외부 브로커에서 이 현장을 구분하는 이름입니다 — 토픽 locationx/<이 이름>/...\n'
+          '데모는 예) controlbit-demo, 업체별은 예) acme-plant1. 비우면 무작위로 만들어집니다.\n'
+          '바꾸면 외부망 뷰·홈페이지 데모도 새 이름으로 접속해야 합니다.',
+          TextField(
+            controller: _siteId,
+            enabled: !_busy,
+            decoration: const InputDecoration(
+                labelText: '외부 토픽 이름 (siteId)',
+                hintText: '예) controlbit-demo',
+                isDense: true,
+                border: OutlineInputBorder()),
+            style: const TextStyle(fontSize: 13),
+          ),
         ),
         const SizedBox(height: 8),
         Row(

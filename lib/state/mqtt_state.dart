@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
@@ -80,9 +82,10 @@ class MqttState extends ChangeNotifier {
   String subscribeFilter = defaultFilter;
   static const defaultFilter = 'controlbit/#';
 
-  /// 고객용 토픽 루트. 장비 내부 통신은 SDK 고정 토픽 `silabs/aoa/...`이고,
-  /// 서버 카드(v2.7.0+)가 위치·각도를 `controlbit/aoa/...`로 복제한다.
-  static const customerRoot = 'controlbit/';
+  /// 고객용 토픽 루트(설치마다 다름 · 기본 controlbit). 장비 내부 통신은 SDK 고정
+  /// 토픽 `silabs/aoa/...`이고, 서버 카드(v2.7.0+)가 `<루트>/aoa/...`로 복제한다.
+  /// 연결할 때 서버 카드의 /api/topic(v2.8.0+)에서 읽어 맞춘다.
+  String customerRoot = 'controlbit';
   static const _internalRoot = 'silabs/';
 
   /// 기본 필터일 때 함께(화면에 안 보이게) 구독하는 내부 토픽 — 복제 브리지가
@@ -178,8 +181,17 @@ class MqttState extends ChangeNotifier {
     // 브로커가 구독을 거부하면(공개 브로커의 와일드카드 차단 등) 연결만 살아있고
     // 데이터가 전혀 안 들어와 원인을 알 수 없다 — 명시적으로 에러로 표시한다.
     client.onSubscribeFail = _onSubscribeFail;
+    // 서버 카드의 고객용 토픽 이름을 읽어 기본 구독을 그 이름으로 (실패하면 그대로)
+    if (topicPrefix.isEmpty) {
+      final r = await _fetchTopicRoot(host);
+      if (r != null) {
+        final wasDefault = subscribeFilter == '$customerRoot/#' || subscribeFilter == defaultFilter;
+        customerRoot = r;
+        if (wasDefault) subscribeFilter = '$r/#';
+      }
+    }
     client.subscribe(subscribeFilter, MqttQos.atMostOnce);
-    if (subscribeFilter == defaultFilter && topicPrefix.isEmpty) {
+    if (subscribeFilter == '$customerRoot/#' && topicPrefix.isEmpty) {
       client.subscribe(_legacyFilter, MqttQos.atMostOnce);
     }
     _customerSeen.clear();
@@ -259,9 +271,9 @@ class MqttState extends ChangeNotifier {
       // 내부 SDK 토픽(silabs/...)은 고객용 이름(controlbit/...)으로 보여 준다.
       // 서버가 이미 controlbit 복제본을 보내고 있으면 내부 쪽은 중복이라 버린다.
       if (topic.startsWith(_internalRoot)) {
-        topic = customerRoot + topic.substring(_internalRoot.length);
+        topic = '$customerRoot/${topic.substring(_internalRoot.length)}';
         if (_customerSeen.contains(topic)) continue;
-      } else if (topic.startsWith(customerRoot)) {
+      } else if (topic.startsWith('$customerRoot/')) {
         _customerSeen.add(topic);
       }
       final rec = MqttMessageRecord(
@@ -303,16 +315,37 @@ class MqttState extends ChangeNotifier {
   // =========================================================
   // 데이터 수신 확인용 파생 데이터
   // =========================================================
-  static const anglePrefix = 'controlbit/aoa/angle/';
-  static const positionPrefix = 'controlbit/aoa/position/';
+  /// `<루트>/aoa/<kind>/...` 토픽이면 루트 뒤 나머지(`<a>/<b>`), 아니면 null —
+  /// 루트 이름(controlbit·업체별)과 무관하게 위치·각도 토픽을 알아본다.
+  static String? aoaRest(String topic, String kind) {
+    final i = topic.indexOf('/aoa/$kind/');
+    if (i <= 0 || topic.substring(0, i).contains('/')) return null;
+    return topic.substring(i + '/aoa/$kind/'.length);
+  }
+
+  /// 서버 카드 설정서버의 고객용 토픽 이름 (v2.8.0+ · 없으면 null).
+  static Future<String?> _fetchTopicRoot(String host) async {
+    try {
+      final c = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+      final req = await c.getUrl(Uri.parse('http://$host:8080/api/topic'));
+      final res = await req.close().timeout(const Duration(seconds: 3));
+      final body = await res.transform(utf8.decoder).join();
+      c.close(force: true);
+      final j = jsonDecode(body);
+      final r = j is Map ? j['root']?.toString() : null;
+      return (r != null && RegExp(r'^[A-Za-z0-9_-]{1,32}$').hasMatch(r)) ? r : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// 로케이터별 angle 수신 현황.
   /// key: locatorId, value: 해당 로케이터의 (태그별 토픽) 통계 목록.
   Map<String, List<MapEntry<String, TopicStat>>> angleByLocator() {
     final out = <String, List<MapEntry<String, TopicStat>>>{};
     for (final entry in topics.entries) {
-      if (!entry.key.startsWith(anglePrefix)) continue;
-      final rest = entry.key.substring(anglePrefix.length);
+      final rest = aoaRest(entry.key, 'angle');
+      if (rest == null) continue;
       final segs = rest.split('/');
       final locator = segs.isNotEmpty ? segs[0] : '(unknown)';
       final tag = segs.length > 1 ? segs.sublist(1).join('/') : '';
@@ -328,8 +361,9 @@ class MqttState extends ChangeNotifier {
   Map<String, TopicStat> positionByTag() {
     final out = <String, TopicStat>{};
     for (final entry in topics.entries) {
-      if (!entry.key.startsWith(positionPrefix)) continue;
-      out[entry.key.substring(positionPrefix.length)] = entry.value;
+      final rest = aoaRest(entry.key, 'position');
+      if (rest == null) continue;
+      out[rest] = entry.value;
     }
     return out;
   }

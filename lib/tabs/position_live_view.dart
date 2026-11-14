@@ -219,11 +219,11 @@ class _PositionLiveViewState extends State<PositionLiveView> {
     final mqtt = _mqtt;
     if (mqtt == null) return;
     for (final entry in mqtt.topics.entries) {
-      if (!entry.key.startsWith(MqttState.positionPrefix)) continue;
-      // 토픽 형식: controlbit/aoa/position/<positioning-id>/<tag-id>
+      // 토픽 형식: <루트>/aoa/position/<positioning-id>/<tag-id>
       // 마지막 세그먼트(태그 ID)만 키로 사용해 angle 쪽 태그 ID와 맞춘다.
-      final tagId =
-          entry.key.substring(MqttState.positionPrefix.length).split('/').last;
+      final rest = MqttState.aoaRest(entry.key, 'position');
+      if (rest == null) continue;
+      final tagId = rest.split('/').last;
       final stat = entry.value;
       final ts = stat.lastTs;
       if (ts == null) continue;
@@ -288,8 +288,8 @@ class _PositionLiveViewState extends State<PositionLiveView> {
     final now = DateTime.now();
     final rays = <_AngleRay>[];
     for (final entry in mqtt.topics.entries) {
-      if (!entry.key.startsWith(MqttState.anglePrefix)) continue;
-      final rest = entry.key.substring(MqttState.anglePrefix.length);
+      final rest = MqttState.aoaRest(entry.key, 'angle');
+      if (rest == null) continue;
       final segs = rest.split('/');
       if (segs.length < 2) continue;
       final stat = entry.value;

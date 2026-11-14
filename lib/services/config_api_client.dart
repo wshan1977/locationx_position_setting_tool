@@ -134,6 +134,17 @@ class ConfigApiClient {
     });
   }
 
+  /// GET /api/topic — 고객용 토픽 이름(루트 · 기본 controlbit) (v2.8.0+).
+  Future<String> fetchTopicRoot() async {
+    final json = await _get('/api/topic');
+    return json['root']?.toString() ?? 'controlbit';
+  }
+
+  /// POST /api/topic — 루트 변경 (서버 브리지 재작성 + 브로커 재시작).
+  Future<void> pushTopicRoot(String root) async {
+    await _post('/api/topic', {'root': root});
+  }
+
   /// POST /api/service — 화이트리스트 서비스 재시작.
   /// mosquitto는 v2.1.0+, aoa-positioning은 v2.1.1+ (구버전이면 서버가 400 반환).
   Future<void> restartService(String name) async {

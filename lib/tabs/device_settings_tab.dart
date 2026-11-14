@@ -13,6 +13,7 @@ import '../widgets/hover_tip.dart';
 import '../widgets/locator_avatar.dart';
 import '../widgets/password_gate.dart';
 import '../widgets/tab_guide.dart';
+import '../widgets/topic_root_section.dart';
 import '../state/app_state.dart';
 
 /// 설정 › ① Locator 설정.
@@ -328,6 +329,16 @@ class _DeviceSettingsTabState extends State<DeviceSettingsTab> {
           '로케이터 angle 수신·position 계산에 쓰는 현장 브로커 — 보통 localhost(이 카드)',
           _ServerMqttSection(
             key: ValueKey('server-mqtt-${d.dedupeKey}'),
+            serverIp: d.ip,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _sectionCard(
+          Icons.topic,
+          '고객용 토픽 이름',
+          '고객 시스템이 구독하는 토픽의 맨 앞 이름 — 업체·데모마다 다르게 (기본 controlbit)',
+          TopicRootSection(
+            key: ValueKey('server-topic-${d.dedupeKey}'),
             serverIp: d.ip,
           ),
         ),
