@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:locationx_position_setting_tool/models/vec3.dart';
-import 'package:locationx_position_setting_tool/models/positioning_config.dart';
-import 'package:locationx_position_setting_tool/services/calibration.dart';
+import 'package:locationx_install_tool/models/vec3.dart';
+import 'package:locationx_install_tool/models/positioning_config.dart';
+import 'package:locationx_install_tool/services/calibration.dart';
 
 /// [o]로 설치된 로케이터가 [target]을 볼 때 보고할 (azimuth, elevation).
 (double, double) simulate(Vec3 loc, Vec3 o, Vec3 target) {

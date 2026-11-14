@@ -101,7 +101,7 @@ class LocationXApp extends StatelessWidget {
     // 큰 라운드 코너 · 플랫(무그림자) · iOS 스크롤 물리(platform: iOS)
     const iosBlue = Color(0xFF007AFF);
     return MaterialApp(
-      title: 'LocationX Manager',
+      title: 'LocationX 설치·검증 도구',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -213,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen>
                 const Text('LocationX',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 6),
-                Text('Manager',
+                Text('설치·검증 도구',
                     style: TextStyle(fontSize: 15, color: Colors.grey.shade700)),
                 if (_version.isNotEmpty) ...[
                   const SizedBox(width: 6),

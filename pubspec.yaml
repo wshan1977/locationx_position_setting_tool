@@ -1,5 +1,5 @@
-name: locationx_position_setting_tool
-description: "LocationX_position_setting_tool"
+name: locationx_install_tool
+description: "LocationX 설치·검증 도구 (Install & Verify Tool)"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.15.1+28
+version: 1.16.0+29
 environment:
   sdk: ^3.7.0
 

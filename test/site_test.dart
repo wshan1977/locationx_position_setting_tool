@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:locationx_position_setting_tool/models/placement.dart';
-import 'package:locationx_position_setting_tool/models/positioning_config.dart';
-import 'package:locationx_position_setting_tool/models/project.dart';
-import 'package:locationx_position_setting_tool/models/session.dart';
-import 'package:locationx_position_setting_tool/models/site.dart';
-import 'package:locationx_position_setting_tool/state/app_state.dart';
+import 'package:locationx_install_tool/models/placement.dart';
+import 'package:locationx_install_tool/models/positioning_config.dart';
+import 'package:locationx_install_tool/models/project.dart';
+import 'package:locationx_install_tool/models/session.dart';
+import 'package:locationx_install_tool/models/site.dart';
+import 'package:locationx_install_tool/state/app_state.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

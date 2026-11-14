@@ -1,11 +1,11 @@
 {
-    "name": "locationx_position_setting_tool",
-    "short_name": "locationx_position_setting_tool",
+    "name": "LocationX Install & Verify Tool",
+    "short_name": "LocationX Install",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "LocationX_position_setting_tool",
+    "description": "LocationX Install & Verify Tool",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

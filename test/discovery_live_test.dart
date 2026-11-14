@@ -6,7 +6,7 @@ library;
 //   flutter test test/discovery_live_test.dart --tags live
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:locationx_position_setting_tool/services/discovery_service.dart';
+import 'package:locationx_install_tool/services/discovery_service.dart';
 
 void main() {
   test('scan finds mock devices (1 server + 3 locators)', () async {

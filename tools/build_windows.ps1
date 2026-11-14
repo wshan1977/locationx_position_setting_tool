@@ -1,6 +1,6 @@
 ﻿# build_windows.ps1 - 버전을 올리고 Windows 릴리스 빌드
 #   기본: 패치 +1 (1.12.0+15 -> 1.12.1+16) · -Minor: 마이너 +1 (1.13.0+16) · -NoBump: 그대로
-#   결과: build\windows\x64\runner\Release\locationx_position_setting_tool_vX.Y.Z.exe
+#   결과: build\windows\x64\runner\Release\locationx_install_tool_vX.Y.Z.exe
 param([switch]$Minor, [switch]$NoBump)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -32,5 +32,5 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "flutter build 실패 (exit $LASTEXITCODE) - 도구가 실행 중이면 닫고 다시" }
 } finally { Pop-Location }
 
-$exe = Join-Path $root ("build\windows\x64\runner\Release\locationx_position_setting_tool_v{0}.{1}.{2}.exe" -f $maj, $min, $pat)
+$exe = Join-Path $root ("build\windows\x64\runner\Release\locationx_install_tool_v{0}.{1}.{2}.exe" -f $maj, $min, $pat)
 if (Test-Path $exe) { Write-Host "완료: $exe" } else { Write-Host "빌드는 끝났지만 $exe 가 없음" }

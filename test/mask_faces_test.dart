@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:locationx_position_setting_tool/models/vec3.dart';
-import 'package:locationx_position_setting_tool/services/mask_faces.dart';
+import 'package:locationx_install_tool/models/vec3.dart';
+import 'package:locationx_install_tool/services/mask_faces.dart';
 
 void main() {
   test('level locators map the +Y face to the expected local azimuths', () {

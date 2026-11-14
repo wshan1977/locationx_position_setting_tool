@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:locationx_position_setting_tool/models/placement.dart';
-import 'package:locationx_position_setting_tool/models/vec3.dart';
-import 'package:locationx_position_setting_tool/state/app_state.dart';
-import 'package:locationx_position_setting_tool/state/external_state.dart';
-import 'package:locationx_position_setting_tool/state/mqtt_state.dart';
-import 'package:locationx_position_setting_tool/tabs/position_live_view.dart';
+import 'package:locationx_install_tool/models/placement.dart';
+import 'package:locationx_install_tool/models/vec3.dart';
+import 'package:locationx_install_tool/state/app_state.dart';
+import 'package:locationx_install_tool/state/external_state.dart';
+import 'package:locationx_install_tool/state/mqtt_state.dart';
+import 'package:locationx_install_tool/tabs/position_live_view.dart';
 
 void main() {
   testWidgets('실측 position 토픽(positioning-id 포함) 수신 시 태그가 표시된다',

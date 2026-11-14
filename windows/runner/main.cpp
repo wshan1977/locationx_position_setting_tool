@@ -29,7 +29,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Size size(1280, 720);
   // Window title shows the pubspec version (FLUTTER_VERSION_* from runner/CMakeLists.txt)
   const std::wstring title =
-      L"locationx_position_setting_tool v" +
+      L"LocationX Install & Verify Tool v" +
       std::to_wstring(FLUTTER_VERSION_MAJOR) + L"." +
       std::to_wstring(FLUTTER_VERSION_MINOR) + L"." +
       std::to_wstring(FLUTTER_VERSION_PATCH);

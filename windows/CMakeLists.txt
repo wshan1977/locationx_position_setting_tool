@@ -1,10 +1,10 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
-project(locationx_position_setting_tool LANGUAGES CXX)
+project(locationx_install_tool LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "locationx_position_setting_tool")
+set(BINARY_NAME "locationx_install_tool")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -107,7 +107,8 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
 
-# Release 폴더의 exe 이름에 버전을 붙인다 (예: locationx_position_setting_tool_v1.12.0.exe).
+# Release 폴더의 exe 이름에 버전을 붙인다 (예: locationx_install_tool_v1.16.0.exe).
+# 옛 이름(locationx_position_setting_tool*.exe · v1.15.x까지)은 실행 중일 수 있어 지우지 않는다 (수동 삭제).
 # Release 설치에서만 이름을 바꾸고(이전 버전 exe는 삭제) Debug/Profile은 그대로 둔다 —
 # flutter run이 원래 이름의 exe를 실행하기 때문.
 set(VERSIONED_EXE "${BINARY_NAME}_v${FLUTTER_VERSION_MAJOR}.${FLUTTER_VERSION_MINOR}.${FLUTTER_VERSION_PATCH}.exe")

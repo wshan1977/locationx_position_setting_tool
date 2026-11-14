@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'package:locationx_position_setting_tool/main.dart';
-import 'package:locationx_position_setting_tool/services/session_storage.dart';
-import 'package:locationx_position_setting_tool/state/app_state.dart';
-import 'package:locationx_position_setting_tool/state/external_state.dart';
-import 'package:locationx_position_setting_tool/state/mqtt_state.dart';
-import 'package:locationx_position_setting_tool/state/tag_state.dart';
+import 'package:locationx_install_tool/main.dart';
+import 'package:locationx_install_tool/services/session_storage.dart';
+import 'package:locationx_install_tool/state/app_state.dart';
+import 'package:locationx_install_tool/state/external_state.dart';
+import 'package:locationx_install_tool/state/mqtt_state.dart';
+import 'package:locationx_install_tool/state/tag_state.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester) {
