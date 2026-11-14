@@ -220,7 +220,7 @@ class _PositionLiveViewState extends State<PositionLiveView> {
     if (mqtt == null) return;
     for (final entry in mqtt.topics.entries) {
       if (!entry.key.startsWith(MqttState.positionPrefix)) continue;
-      // 토픽 형식: silabs/aoa/position/<positioning-id>/<tag-id>
+      // 토픽 형식: controlbit/aoa/position/<positioning-id>/<tag-id>
       // 마지막 세그먼트(태그 ID)만 키로 사용해 angle 쪽 태그 ID와 맞춘다.
       final tagId =
           entry.key.substring(MqttState.positionPrefix.length).split('/').last;

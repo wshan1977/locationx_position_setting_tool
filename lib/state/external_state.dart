@@ -132,7 +132,7 @@ class CmdResult {
 /// 외부망 테스트 탭 상태: 외부 브로커 전용 [MqttState]를 소유하고
 /// `locationx/<siteId>/` 프리픽스 아래의 status·agent·cmdres 토픽을 해석한다.
 /// 프리픽스는 MqttState가 수신 시 제거하므로 여기서는 벗겨진 토픽만 다룬다.
-/// silabs/aoa/position/... 도 같은 연결로 들어와 PositionLiveView가
+/// controlbit/aoa/position/... 도 같은 연결로 들어와 PositionLiveView가
 /// (중첩 Provider로 이 mqtt를 주입하면) 무수정으로 위치를 그린다.
 class ExternalState extends ChangeNotifier {
   final MqttState mqtt = MqttState();

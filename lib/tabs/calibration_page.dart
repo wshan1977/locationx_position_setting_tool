@@ -80,8 +80,8 @@ class _CalibrationPageState extends State<CalibrationPage> {
     super.dispose();
   }
 
-  static final _angleTopic = RegExp(r'^silabs/aoa/angle/([^/]+)/([^/]+)$');
-  static final _posTopic = RegExp(r'^silabs/aoa/position/[^/]+/([^/]+)$');
+  static final _angleTopic = RegExp(r'^controlbit/aoa/angle/([^/]+)/([^/]+)$');
+  static final _posTopic = RegExp(r'^controlbit/aoa/position/[^/]+/([^/]+)$');
 
   /// 지금까지 angle 토픽에 나타난 태그 ID.
   List<String> _tags(MqttState mqtt) {

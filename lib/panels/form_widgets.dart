@@ -79,6 +79,33 @@ class _NumFieldState extends State<NumField> {
 }
 
 /// 현재 값이 목록에 없어도 표시 가능한 드롭다운.
+/// 위치 계산 엔진 설정값(장비 SDK 상수 문자열) → 화면 표시 이름.
+/// 값 자체는 그대로 저장·전송하고 화면에만 쓴다 (모르는 값은 원문 표시).
+const _settingLabels = {
+  'SL_RTL_LOC_ESTIMATION_MODE_THREE_DIM_HIGH_ACCURACY': '3D · 고정밀',
+  'SL_RTL_LOC_ESTIMATION_MODE_THREE_DIM_FAST_RESPONSE': '3D · 빠른 반응',
+  'SL_RTL_LOC_ESTIMATION_MODE_TWO_DIM_HIGH_ACCURACY': '2D · 고정밀 (태그 높이 고정)',
+  'SL_RTL_LOC_ESTIMATION_MODE_TWO_DIM_FAST_RESPONSE': '2D · 빠른 반응 (태그 높이 고정)',
+  'SL_RTL_LOC_MEASUREMENT_VALIDATION_MINIMUM': '최소 (대부분 사용)',
+  'SL_RTL_LOC_MEASUREMENT_VALIDATION_MEDIUM': '중간',
+  'SL_RTL_LOC_MEASUREMENT_VALIDATION_FULL': '엄격 (반사 환경)',
+  'SL_RTL_AOX_MODE_REAL_TIME_BASIC': 'AoA · 기본 (권장)',
+  'SL_RTL_AOX_MODE_REAL_TIME_FAST_RESPONSE': 'AoA · 빠른 반응',
+  'SL_RTL_AOX_MODE_REAL_TIME_HIGH_ACCURACY': 'AoA · 고정밀',
+  'SL_RTL_AOX_MODE_REAL_HIGH_ACCURACY': 'AoA · 고정밀 (구 표기)',
+  'SL_RTL_AOD_MODE_REAL_TIME_FAST_RESPONSE': 'AoD · 빠른 반응',
+  'SL_RTL_AOD_MODE_REAL_TIME_BASIC': 'AoD · 기본',
+  'SL_RTL_AOX_ARRAY_TYPE_4x4_URA': '4×4 평면 배열 (기본)',
+  'SL_RTL_AOX_ARRAY_TYPE_3x3_URA': '3×3 평면 배열',
+  'SL_RTL_AOX_ARRAY_TYPE_1x4_ULA': '1×4 직선 배열',
+  'SILABS': '전용 비연결 방식 (기본)',
+  'CONNLESS': 'BLE 표준 비연결 (주기적 광고)',
+  'CONN': 'BLE 연결 기반',
+};
+
+/// 설정값의 화면 표시 이름.
+String settingLabel(String value) => _settingLabels[value] ?? value;
+
 class SafeDropdown extends StatelessWidget {
   final String label;
   final String value;
@@ -110,7 +137,7 @@ class SafeDropdown extends StatelessWidget {
         for (final o in items)
           DropdownMenuItem(
             value: o,
-            child: Text(o, overflow: TextOverflow.ellipsis),
+            child: Text(settingLabel(o), overflow: TextOverflow.ellipsis),
           ),
       ],
       onChanged: (v) {

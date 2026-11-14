@@ -45,7 +45,7 @@ class GlobalSettingsForm extends StatelessWidget {
 
         _cfgTip(
           '이 위치인식 그룹의 식별자입니다.\n'
-          'position 토픽 경로(silabs/aoa/position/<ID>/<태그>)에 그대로 들어갑니다.',
+          'position 토픽 경로(controlbit/aoa/position/<ID>/<태그>)에 그대로 들어갑니다.',
           TextFormField(
             initialValue: g.id,
             decoration: const InputDecoration(
@@ -64,11 +64,11 @@ class GlobalSettingsForm extends StatelessWidget {
 
         _cfgTip(
           '위치 계산 알고리즘 모드입니다.\n'
-          '· THREE_DIM: x·y·z 3차원 추정 (기본)\n'
-          '· TWO_DIM: 태그 높이를 고정한 2차원 추정 — 로케이터가 적을 때 안정적\n'
-          '· HIGH_ACCURACY: 정확하지만 느림 / FAST_RESPONSE: 빠르지만 노이즈에 민감',
+          '· 3D: x·y·z 3차원 추정 (기본)\n'
+          '· 2D: 태그 높이를 고정한 2차원 추정 — 로케이터가 적을 때 안정적\n'
+          '· 고정밀: 정확하지만 느림 / 빠른 반응: 빠르지만 노이즈에 민감',
           SafeDropdown(
-            label: 'estimationModeLocation',
+            label: '위치 추정 모드',
             value: g.estimationModeLocation,
             options: _estimationModes,
             onChanged: (v) {
@@ -81,11 +81,11 @@ class GlobalSettingsForm extends StatelessWidget {
 
         _cfgTip(
           '각도 측정값 검증 강도입니다. 품질이 낮은 angle을 걸러냅니다.\n'
-          '· MINIMUM: 검증 최소 — 대부분의 측정을 사용 (기본)\n'
-          '· MEDIUM: 중간 수준 검증\n'
-          '· FULL: 가장 엄격 — 반사/노이즈 환경에서 유리하지만 위치 갱신이 뜸해질 수 있음',
+          '· 최소: 대부분의 측정을 사용 (기본)\n'
+          '· 중간: 중간 수준 검증\n'
+          '· 엄격: 반사/노이즈 환경에서 유리하지만 위치 갱신이 뜸해질 수 있음',
           SafeDropdown(
-            label: 'validationModeLocation',
+            label: '측정값 검증 강도',
             value: g.validationModeLocation,
             options: _validationModes,
             onChanged: (v) {

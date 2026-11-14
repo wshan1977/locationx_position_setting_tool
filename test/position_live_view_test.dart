@@ -28,9 +28,9 @@ void main() {
     expect(find.textContaining('표시할 데이터가 없습니다'), findsOneWidget);
 
     // 실제 서버 발행 형식 그대로 주입:
-    // silabs/aoa/position/<positioning-id>/<tag-id>
+    // controlbit/aoa/position/<positioning-id>/<tag-id>
     const topic =
-        'silabs/aoa/position/positioning-test_room/ble-pd-30FB1064F881';
+        'controlbit/aoa/position/positioning-test_room/ble-pd-30FB1064F881';
     mqtt.topics[topic] = TopicStat()
       ..add(MqttMessageRecord(
         topic: topic,

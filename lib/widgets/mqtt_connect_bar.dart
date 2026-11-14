@@ -94,7 +94,7 @@ class _MqttConnectBarState extends State<MqttConnectBar> {
             )
           else
             hoverTip(
-              '브로커에 접속해 LocationX 토픽(silabs/#)을 구독합니다.\n'
+              '브로커에 접속해 LocationX 토픽(controlbit/#)을 구독합니다.\n'
               '연결 상태는 재시작 시 자동으로 복원됩니다.',
               FilledButton.icon(
                 onPressed: connecting

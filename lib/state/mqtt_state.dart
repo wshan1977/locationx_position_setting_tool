@@ -70,18 +70,31 @@ class MqttState extends ChangeNotifier {
   int port = 1883;
 
   /// 수신 시 토픽 앞에서 떼어내고, 발행 시 앞에 붙이는 프리픽스.
-  /// 외부망 중계 토픽(`locationx/<siteId>/silabs/aoa/...`)을 프리픽스만 벗겨
+  /// 외부망 중계 토픽(`locationx/<siteId>/controlbit/aoa/...`)을 프리픽스만 벗겨
   /// 내부망과 같은 토픽 모양으로 만들면 positionByTag() 등 하류 소비자가
   /// 무수정으로 동작한다. clientId도 구분해 내부 연결과 공존 가능.
   String topicPrefix = '';
 
   /// 기본 구독 필터. 루트 와일드카드 `#`는 공개 브로커(broker.hivemq.com 등)가
-  /// 거부(SUBACK 0x80)하므로 이 시스템의 토픽 루트인 silabs/#를 쓴다 (실측).
+  /// 거부(SUBACK 0x80)하므로 이 시스템의 고객용 토픽 루트인 controlbit/#를 쓴다.
   String subscribeFilter = defaultFilter;
-  static const defaultFilter = 'silabs/#';
+  static const defaultFilter = 'controlbit/#';
 
-  /// 구세션에 저장된 레거시 `#` 필터를 silabs/#로 이관.
-  static String _normalizeFilter(String f) => f == '#' ? defaultFilter : f;
+  /// 고객용 토픽 루트. 장비 내부 통신은 SDK 고정 토픽 `silabs/aoa/...`이고,
+  /// 서버 카드(v2.7.0+)가 위치·각도를 `controlbit/aoa/...`로 복제한다.
+  static const customerRoot = 'controlbit/';
+  static const _internalRoot = 'silabs/';
+
+  /// 기본 필터일 때 함께(화면에 안 보이게) 구독하는 내부 토픽 — 복제 브리지가
+  /// 없는 구버전 서버(v2.6.x 이하)에서도 동작하도록. 받은 뒤 고객용 이름으로 바꾼다.
+  static const _legacyFilter = 'silabs/aoa/#';
+
+  /// 구세션에 저장된 레거시 필터(`#`, `silabs/#`)를 controlbit/#로 이관.
+  static String _normalizeFilter(String f) =>
+      (f == '#' || f == 'silabs/#') ? defaultFilter : f;
+
+  // 실제 controlbit/... 로 받은 토픽 — 같은 내용의 내부 토픽은 중복이라 버린다.
+  final Set<String> _customerSeen = {};
 
   bool paused = false;
 
@@ -166,6 +179,10 @@ class MqttState extends ChangeNotifier {
     // 데이터가 전혀 안 들어와 원인을 알 수 없다 — 명시적으로 에러로 표시한다.
     client.onSubscribeFail = _onSubscribeFail;
     client.subscribe(subscribeFilter, MqttQos.atMostOnce);
+    if (subscribeFilter == defaultFilter && topicPrefix.isEmpty) {
+      client.subscribe(_legacyFilter, MqttQos.atMostOnce);
+    }
+    _customerSeen.clear();
     _updatesSub = client.updates?.listen(_onMessages);
 
     // 수신율 갱신 등 주기적 UI 리프레시 (수신이 있을 때만 notify)
@@ -239,6 +256,14 @@ class MqttState extends ChangeNotifier {
       if (topicPrefix.isNotEmpty && topic.startsWith(topicPrefix)) {
         topic = topic.substring(topicPrefix.length);
       }
+      // 내부 SDK 토픽(silabs/...)은 고객용 이름(controlbit/...)으로 보여 준다.
+      // 서버가 이미 controlbit 복제본을 보내고 있으면 내부 쪽은 중복이라 버린다.
+      if (topic.startsWith(_internalRoot)) {
+        topic = customerRoot + topic.substring(_internalRoot.length);
+        if (_customerSeen.contains(topic)) continue;
+      } else if (topic.startsWith(customerRoot)) {
+        _customerSeen.add(topic);
+      }
       final rec = MqttMessageRecord(
         topic: topic,
         payload: payload,
@@ -278,8 +303,8 @@ class MqttState extends ChangeNotifier {
   // =========================================================
   // 데이터 수신 확인용 파생 데이터
   // =========================================================
-  static const anglePrefix = 'silabs/aoa/angle/';
-  static const positionPrefix = 'silabs/aoa/position/';
+  static const anglePrefix = 'controlbit/aoa/angle/';
+  static const positionPrefix = 'controlbit/aoa/position/';
 
   /// 로케이터별 angle 수신 현황.
   /// key: locatorId, value: 해당 로케이터의 (태그별 토픽) 통계 목록.

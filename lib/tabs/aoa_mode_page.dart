@@ -17,7 +17,7 @@ import '../widgets/tab_guide.dart';
 /// AOA 모드(방향각): 살아 있는 로케이터 하나를 골라 그 로케이터가 보고하는
 /// 각도를 2D 원(방위 바늘 + 앙각 점) 또는 3D 뷰(안테나 판 + 방향 화살표)와
 /// 흐르는 그래프(방위·앙각 따로)로 본다. 내부망 브로커의
-/// `silabs/aoa/angle/<locator>/<tag>` 를 받는다.
+/// `controlbit/aoa/angle/<locator>/<tag>` 를 받는다.
 ///
 /// 각도 규약 (RTL 원값):
 ///  - 방위(azimuth): 안테나 판 위에서 보드 x축(0° · 빨간 노치)에서 y축(90° ·
@@ -99,8 +99,8 @@ class _AoaModePageState extends State<AoaModePage> {
 
   void _onRecord(MqttMessageRecord r) {
     final parts = r.topic.split('/');
-    // silabs/aoa/angle/<locator>/<tag>
-    if (parts.length < 5 || parts[0] != 'silabs' || parts[2] != 'angle') return;
+    // controlbit/aoa/angle/<locator>/<tag> (내부 토픽도 MqttState가 이 이름으로 바꿔 줌)
+    if (parts.length < 5 || parts[0] != 'controlbit' || parts[2] != 'angle') return;
     Map<String, dynamic> j;
     try {
       j = jsonDecode(r.payload) as Map<String, dynamic>;

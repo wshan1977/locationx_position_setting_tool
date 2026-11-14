@@ -189,12 +189,12 @@ class LocatorSettingsForm extends StatelessWidget {
           children: [
             _cfgTip(
               'AoA 방향 추정 알고리즘 모드입니다.\n'
-              '· REAL_TIME_FAST_RESPONSE: 반응이 빠름 — 움직이는 태그에 적합, 노이즈에 민감\n'
-              '· REAL_TIME_BASIC: 기본 실시간 모드 (권장)\n'
-              '· HIGH_ACCURACY: 가장 정확하지만 계산량이 많아 느림\n'
-              '(AOD_*는 AoD 방식 전용 모드)',
+              '· 빠른 반응: 움직이는 태그에 적합, 노이즈에 민감\n'
+              '· 기본: 기본 실시간 모드 (권장)\n'
+              '· 고정밀: 가장 정확하지만 계산량이 많아 느림\n'
+              '(AoD 항목은 AoD 방식 전용 모드)',
               SafeDropdown(
-                label: 'aoxMode',
+                label: '각도 추정 모드',
                 value: p.config['aoxMode']?.toString() ?? _aoxModes.first,
                 options: _aoxModes,
                 onChanged: (v) => _setConfig(app, 'aoxMode', v),
@@ -203,11 +203,11 @@ class LocatorSettingsForm extends StatelessWidget {
             const SizedBox(height: 8),
             _cfgTip(
               '로케이터 안테나 배열 형태입니다. 카드의 실제 안테나 보드와 일치해야 합니다.\n'
-              '· 4x4_URA: 4×4 평면 배열 (기본)\n'
-              '· 3x3_URA: 3×3 평면 배열\n'
-              '· 1x4_ULA: 1×4 직선 배열 — azimuth만 정확, elevation 부정확',
+              '· 4×4 평면 배열 (기본)\n'
+              '· 3×3 평면 배열\n'
+              '· 1×4 직선 배열 — 방위만 정확, 앙각 부정확',
               SafeDropdown(
-                label: 'antennaMode',
+                label: '안테나 배열',
                 value:
                     p.config['antennaMode']?.toString() ?? _antennaModes.first,
                 options: _antennaModes,
@@ -217,11 +217,11 @@ class LocatorSettingsForm extends StatelessWidget {
             const SizedBox(height: 8),
             _cfgTip(
               'CTE(Constant Tone Extension) 수신 방식입니다. 태그의 송신 방식과 일치해야 합니다.\n'
-              '· SILABS: Silicon Labs 독자 비연결 방식 (기본)\n'
-              '· CONNLESS: BLE 표준 비연결(주기적 광고) 방식\n'
-              '· CONN: BLE 연결 기반 방식',
+              '· 전용 비연결 방식 (기본 · LocationX 태그)\n'
+              '· BLE 표준 비연결(주기적 광고) 방식\n'
+              '· BLE 연결 기반 방식',
               SafeDropdown(
-                label: 'cteMode',
+                label: 'CTE 수신 방식',
                 value: p.config['cteMode']?.toString() ?? _cteModes.first,
                 options: _cteModes,
                 onChanged: (v) => _setConfig(app, 'cteMode', v),

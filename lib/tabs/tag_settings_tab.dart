@@ -388,8 +388,7 @@ class _TagSettingsTabState extends State<TagSettingsTab> {
             _sectionCard(
               Icons.system_update_alt,
               '펌웨어 OTA 업데이트',
-              'Silicon Labs AppLoader OTA — 태그 펌웨어에 in_place_ota_dfu가 있어야 합니다 '
-                  '(Simplicity Studio 빌드 산출물 *.gbl, 부트로더 아닌 앱 이미지)',
+              'BLE 무선 업데이트 — LocationX 태그 펌웨어(.gbl · 앱 이미지)를 GitHub 릴리즈나 파일에서 골라 기록합니다',
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

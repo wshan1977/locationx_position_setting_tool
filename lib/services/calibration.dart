@@ -12,7 +12,7 @@ import '../models/vec3.dart';
 ///   elevation은 안테나 판 평면 기준(0° = 수평, 90° = 판 정면/바로 아래)
 ///   v_local = (cos el·cos az, cos el·sin az, sin el)
 ///   v_world = Rz(oz)·Ry(oy)·Rx(ox) · v_local
-/// 회전 순서는 positioning(RTL)이 보낸 silabs/aoa/correction 기대 각도 267건을
+/// 회전 순서는 positioning(RTL)이 보낸 correction(기대 각도) 267건을
 /// 같은 시점 위치·orientation으로 역산해 확인했다 (D71E 잔차 0.4°). 처음 쓴
 /// Rx·Ry·Rz는 기울기 0일 때만 같아서 보정 후 오차가 오히려 커졌었다.
 /// 적용 후에는 실제 positioning 결과로 검증한다 (보정 화면의 [검증]).

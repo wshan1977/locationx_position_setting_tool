@@ -7,7 +7,7 @@ import '../widgets/mqtt_connect_bar.dart';
 import '../widgets/tab_guide.dart';
 
 /// 관제 › 데이터 수신 확인.
-/// MQTT 브로커에 접속해 silabs/aoa/angle·position 토픽의 수신 현황을
+/// MQTT 브로커에 접속해 controlbit/aoa/angle·position 토픽의 수신 현황을
 /// 로케이터/태그별로 보여준다. 캔버스에 배치된 로케이터 중 미수신인
 /// 카드도 표시한다.
 class DataMonitorTab extends StatelessWidget {
@@ -65,7 +65,7 @@ class DataMonitorTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Angle 수신 (silabs/aoa/angle/<로케이터>/<태그>)',
+        Text('Angle 수신 (controlbit/aoa/angle/<로케이터>/<태그>)',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (byLocator.isEmpty)
@@ -146,7 +146,7 @@ class DataMonitorTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Position 수신 (silabs/aoa/position/<태그>)',
+        Text('Position 수신 (controlbit/aoa/position/<태그>)',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (byTag.isEmpty)
